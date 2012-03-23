@@ -1,0 +1,5 @@
+
+This project is an aggregate btee implementation.  It is copyrighted by Jeremy Bruestle (2012), and is being released under the GNU Affero General Public License version 3.
+
+Right now, there is no documenetation and the build system needs to be replaced with GNU autoconf. 
+
