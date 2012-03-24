@@ -18,31 +18,31 @@
 #ifndef __bdecl_h__
 #define __bdecl_h__
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class bnode;
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class bnode_proxy;
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class pinned_proxy;
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class bnode_ptr;
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class bcache;
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class bstore;
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class bsnapshot;
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class biter;
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class btree;
 
 #endif

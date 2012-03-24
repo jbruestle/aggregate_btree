@@ -22,11 +22,13 @@
 
 #include "bdecl.h"
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class bsnapshot
 {
-	typedef bnode_ptr<Key, Value, Context> ptr_t;
-	friend class btree<Key, Value, Context>;
+	typedef bnode_ptr<Policy> ptr_t;
+	typedef typename Policy::key_t key_t;
+	typedef typename Policy::value_t value_t;
+	friend class btree<Policy>;
 public:
 	bsnapshot(const ptr_t& root, size_t height) 
 		: m_root(root)
@@ -49,7 +51,7 @@ public:
 		m_root->print(0);
 	}
 
-	typedef std::pair<Key, Value> value_type;
+	typedef std::pair<key_t, value_t> value_type;
 
 	class const_iterator : public boost::iterator_facade<
 		const_iterator,
@@ -64,7 +66,7 @@ public:
 			: m_state(root, height) {}
 
 	private:
-		biter<Key, Value, Context> m_state;
+		biter<Policy> m_state;
 		void increment() { m_state.increment(); }
 		void decrement() { m_state.decrement(); }
 		bool equal(const_iterator const& other) const { return m_state == other.m_state; }
@@ -79,13 +81,13 @@ public:
 		const_iterator r(m_root, m_height); return r; 
 	}
 
-	const_iterator find(const Key& k) const { 
+	const_iterator find(const key_t& k) const { 
 		const_iterator r(m_root, m_height); r.m_state.set_find(k); return r; 
 	}
-	const_iterator lower_bound(const Key& k) const { 
+	const_iterator lower_bound(const key_t& k) const { 
 		const_iterator r(m_root, m_height); r.m_state.set_lower_bound(k); return r; 
 	}
-	const_iterator upper_bound(const Key& k) const { 
+	const_iterator upper_bound(const key_t& k) const { 
 		const_iterator r(m_root, m_height); r.m_state.set_upper_bound(k); return r; 
 	}
 
@@ -95,7 +97,7 @@ public:
 	// That is, we stop right before threshold becomes true
 	// In reality, the whole thing is done in log(n) time through fancy tricks
 	template<class Functor>
-	void accumulate_until(const_iterator& cur, Value& total, const const_iterator& end, const Functor& threshold)
+	void accumulate_until(const_iterator& cur, value_t& total, const const_iterator& end, const Functor& threshold)
 	{
 		cur.m_state.accumulate_until(threshold, total, end.m_state);
 	}

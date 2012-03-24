@@ -20,11 +20,13 @@
 
 #include "bdecl.h"
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class biter
 {
 public:
-	typedef bnode_ptr<Key, Value, Context> ptr_t;
+	typedef typename Policy::key_t key_t;
+	typedef typename Policy::value_t value_t;
+	typedef bnode_ptr<Policy> ptr_t;
 
 	// Construct a totally empty iterator
 	biter()
@@ -91,12 +93,12 @@ public:
 
 private:
 	template<class Functor>
-	void walk_until(const Functor& threshold, Value& start, const ptr_t& node, size_t& it, size_t end)
+	void walk_until(const Functor& threshold, value_t& start, const ptr_t& node, size_t& it, size_t end)
 	{
 		assert(it <= end);
 		while(it != end)
 		{
-			Value new_val = start;
+			value_t new_val = start;
 			new_val += node.val(it);
 			if (threshold(new_val))
 				break;
@@ -107,7 +109,7 @@ private:
 
 public:
 	template<class Functor>
-	void accumulate_until(const Functor& threshold, Value& start, const biter& end)
+	void accumulate_until(const Functor& threshold, value_t& start, const biter& end)
 	{
 		// Assert that we are not at end
 		assert(!is_end());
@@ -195,7 +197,7 @@ public:
 		m_iters[0] = m_nodes[0].size();
 	}
 
-	void set_find(const Key& k)
+	void set_find(const key_t& k)
 	{
 		set_lower_bound(k);
 		if (m_pair.first == k)
@@ -203,11 +205,11 @@ public:
 		set_end();
 	}
 
-	void set_lower_bound(const Key& k)
+	void set_lower_bound(const key_t& k)
 	{
 		if (m_height == 0)
 			return;
-		if (k <= m_nodes[0].key(0))
+		if (!Policy::less_then(m_nodes[0].key(0), k))
 		{
 			set_begin();
 			return;
@@ -222,11 +224,11 @@ public:
 		increment();
 	}
 
-	void set_upper_bound(const Key& k)
+	void set_upper_bound(const key_t& k)
 	{
 		if (m_height == 0)
 			return;
-		if (k < m_nodes[0].key(0))
+		if (Policy::less_then(k, m_nodes[0].key(0)))
 		{
 			set_begin();
 			return;
@@ -302,12 +304,12 @@ public:
 	}
 
 	bool is_end() const { return m_height == 0 || m_iters[0] == m_nodes[0].size(); }
-	const std::pair<Key, Value>& get_pair() const { 
+	const std::pair<key_t, value_t>& get_pair() const { 
 		assert(!is_end()); 
 		return m_pair; 
 	}
-	const Key& get_key() const { assert(!is_end()); return m_pair.first; }
-	const Value& get_value() const { assert(!is_end()); return m_pair.second; }
+	const key_t& get_key() const { assert(!is_end()); return m_pair.first; }
+	const value_t& get_value() const { assert(!is_end()); return m_pair.second; }
 
 private:
 	// The height of the tree we are attached to
@@ -318,7 +320,7 @@ private:
 	std::vector<ptr_t> m_nodes;
 	// The iterators within each node
 	std::vector<size_t> m_iters; 
-	std::pair<Key, Value> m_pair;
+	std::pair<key_t, value_t> m_pair;
 };
 
 #endif

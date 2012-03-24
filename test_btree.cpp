@@ -17,10 +17,18 @@
 
 #include "serial.h"
 
-void deserialize(const int& nothing, readable& src, int& out)
+struct int_int_policy
 {
-	deserialize(src, out);
-}
+	typedef int key_t;
+	typedef int value_t;
+	typedef void* context_t;
+	static void aggregate(int& out, const int& in) { out += in; }
+	static bool less_then(const int& a, const int& b) { return a < b; }
+	static void serialize(writable& out, const int& a) { ::serialize(out, a); }
+	static void deserialize(readable& in, int& a) { ::deserialize(in, a); }
+	static const size_t min_size = 10;
+	static const size_t max_size = 20;
+};
 
 #include "btree.h"
 #include <map>
@@ -31,7 +39,7 @@ const size_t k_value_range = 100;
 const size_t k_num_snapshots = 5;
 const bool noisy = false;
 
-typedef btree<int, int> btree_t;
+typedef btree<int_int_policy> btree_t;
 typedef btree_t::snapshot_t bsnapshot_t;
 typedef bsnapshot_t::const_iterator biterator_t;
 

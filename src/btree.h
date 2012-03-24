@@ -26,29 +26,32 @@
 #include "biter.h"
 #include "bsnapshot.h"
 
-template<class Key, class Value, class Context = int>
+template<class Policy>
 class btree
 {
-	typedef bnode<Key, Value, Context> node_t;
-	typedef bnode_ptr<Key, Value, Context> ptr_t;
+	typedef bnode<Policy> node_t;
+	typedef bnode_ptr<Policy> ptr_t;
+	typedef typename Policy::key_t key_t;
+	typedef typename Policy::value_t value_t;
+	typedef typename Policy::context_t context_t;
 public:
-	typedef bsnapshot<Key, Value, Context> snapshot_t;
+	typedef bsnapshot<Policy> snapshot_t;
 
-	btree(size_t max_unwritten, size_t max_cache, const Context& context = Context()) 
+	btree(size_t max_unwritten, size_t max_cache, const context_t& context = context_t()) 
 		: m_cache(max_unwritten, max_cache, context)
 		, m_height(0)
 	{}
 
 public:
-	const Context& get_context() { return m_cache.get_context(); }
+	const context_t& get_context() { return m_cache.get_context(); }
 
 	template<class Updater>
-	bool update(const Key& k, const Updater& updater)
+	bool update(const key_t& k, const Updater& updater)
 	{
 		// If root is null, see if an insert works
 		if (m_root == ptr_t())
 		{
-			Value v;
+			value_t v;
 			bool exists = false;
 			// Try the insert
 			bool changed = updater(v, exists);
@@ -179,7 +182,7 @@ public:
 	}
 
 private:
-	mutable bcache<Key, Value, Context> m_cache;
+	mutable bcache<Policy> m_cache;
 	ptr_t m_root;
 	size_t m_height;
 };

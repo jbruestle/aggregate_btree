@@ -26,11 +26,11 @@
 
 // Pinned proxy is a helper class to
 // pin and unpin a proxy to allow RAII
-template<class Key, class Value, class Context>
+template<class Policy>
 class pinned_proxy 
 {
-	typedef bnode<Key, Value, Context> node_t; 
-	typedef bnode_proxy<Key, Value, Context> proxy_t; 
+	typedef bnode<Policy> node_t; 
+	typedef bnode_proxy<Policy> proxy_t; 
 public:
 	pinned_proxy(proxy_t* proxy)
 		: m_proxy(proxy)
@@ -50,15 +50,15 @@ private:
 	proxy_t* m_proxy;
 };
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class bnode_proxy : public boost::intrusive::list_base_hook<>
 {
-	typedef bnode<Key, Value, Context> node_t;
-	typedef bnode_ptr<Key, Value, Context> ptr_t;
-	typedef bcache<Key, Value, Context> cache_t;
+	typedef bnode<Policy> node_t;
+	typedef bnode_ptr<Policy> ptr_t;
+	typedef bcache<Policy> cache_t;
 	typedef boost::condition_variable_any condition_t;
-	friend class pinned_proxy<Key, Value, Context>;
-	friend class bcache<Key, Value, Context>;
+	friend class pinned_proxy<Policy>;
+	friend class bcache<Policy>;
 
 private:
 	// Create a new proxy from a node

@@ -70,11 +70,11 @@ protected:
 	mutex_t m_mutex;  // IO mutex, could be per slab, but I'm lazy
 };
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class bstore : public bstore_base
 {
-	typedef bcache<Key, Value, Context> cache_t;
-	typedef bnode<Key, Value, Context> node_t;
+	typedef bcache<Policy> cache_t;
+	typedef bnode<Policy> node_t;
 public:
 	off_t write_node(const node_t& bnode)
 	{

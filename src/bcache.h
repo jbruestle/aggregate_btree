@@ -25,18 +25,19 @@
 
 #include "bdecl.h"
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class bcache
 {
-	typedef bnode<Key, Value, Context> node_t;
-	typedef bnode_proxy<Key, Value, Context> proxy_t;
-	typedef bnode_ptr<Key, Value, Context> ptr_t;
-	typedef bstore<Key, Value, Context> store_t;
+	typedef bnode<Policy> node_t;
+	typedef bnode_proxy<Policy> proxy_t;
+	typedef bnode_ptr<Policy> ptr_t;
+	typedef bstore<Policy> store_t;
 	typedef boost::recursive_mutex mutex_t;
 	typedef boost::unique_lock<mutex_t> lock_t;
+	typedef typename Policy::context_t context_t;
 
 public:
-	bcache(size_t max_unwritten_size, size_t max_lru_size, const Context& context)
+	bcache(size_t max_unwritten_size, size_t max_lru_size, const context_t& context)
 		: m_max_unwritten_size(max_unwritten_size)
 		, m_max_lru_size(max_lru_size)
 		, m_in_write(false)
@@ -222,7 +223,7 @@ public:
 		m_store.close();
 	}
 
-	const Context& get_context() { return m_context; }
+	const context_t& get_context() { return m_context; }
 private:
 	off_t lowest_loc()
 	{
@@ -293,7 +294,7 @@ private:
 	by_off_t m_by_off;
 	typedef std::pair<off_t, proxy_t*> old_off_t;
 	std::set<old_off_t> m_oldest;
-	Context m_context;
+	context_t m_context;
 };
 
 #endif

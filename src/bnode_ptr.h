@@ -23,12 +23,14 @@
 
 #include "bdecl.h"
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class bnode_ptr
 {
-	typedef bnode<Key, Value, Context> node_t;
-	typedef bnode_proxy<Key, Value, Context> proxy_t;
-	typedef pinned_proxy<Key, Value, Context> pinned_t;
+	typedef bnode<Policy> node_t;
+	typedef bnode_proxy<Policy> proxy_t;
+	typedef pinned_proxy<Policy> pinned_t;
+	typedef typename Policy::key_t key_t;
+	typedef typename Policy::value_t value_t;
 public:
 	bnode_ptr() : m_proxy(NULL) {}
 	bnode_ptr(proxy_t* proxy) : m_proxy(proxy) {}
@@ -55,15 +57,15 @@ public:
 		pinned_t pp(m_proxy);
 		return pp->size();
 	}
-	Key key(size_t i) const { 
+	key_t key(size_t i) const { 
 		pinned_t pp(m_proxy);
 		return pp->key(i); 
 	}
-	Value val(size_t i) const { 
+	value_t val(size_t i) const { 
 		pinned_t pp(m_proxy);
 		return pp->val(i); 
 	}
-	Value total() const { 
+	value_t total() const { 
 		pinned_t pp(m_proxy);
 		return pp->total(); 
 	}
@@ -72,11 +74,11 @@ public:
 		pinned_t pp(m_proxy);
 		return pp->ptr(i); 
 	}
-	size_t lower_bound(const Key& k) const { 
+	size_t lower_bound(const key_t& k) const { 
 		pinned_t pp(m_proxy);
 		return pp->lower_bound(k); 
 	}
-	size_t upper_bound(const Key& k) const { 
+	size_t upper_bound(const key_t& k) const { 
 		pinned_t pp(m_proxy);
 		return pp->upper_bound(k); 
 	}
@@ -95,7 +97,7 @@ public:
 		return pp->validate(goal_height, is_root); 
 	}
 
-	Value compute_total() const { 
+	value_t compute_total() const { 
 		pinned_t pp(m_proxy);
 		return pp->compute_total(); 
 	}

@@ -27,18 +27,20 @@
 
 static size_t g_node_count = 0;
 
-template<class Key, class Value, class Context>
+template<class Policy>
 class bnode 
 {
 private:
 	// Largest and smallest legal node sizes
-	const static size_t min_size = 10;
-	const static size_t max_size = 20;
-	typedef bnode_ptr<Key, Value, Context> ptr_t;
-	typedef bcache<Key, Value, Context> cache_t;
+	const static size_t min_size = Policy::min_size;
+	const static size_t max_size = Policy::max_size;
+	typedef typename Policy::key_t key_t;
+	typedef typename Policy::value_t value_t;
+	typedef bnode_ptr<Policy> ptr_t;
+	typedef bcache<Policy> cache_t;
 public:
 	// Create a new 'tree' with one element
-	bnode(const Key& k, const Value& v)
+	bnode(const key_t& k, const value_t& v)
 		: m_height(0)      // We are a leaf
 		, m_total(v)       // Total is our one entry
 		, m_size(1)
@@ -54,7 +56,7 @@ public:
 		, m_total(n1.total())  // Compute an initial total
 		, m_size(2)
 	{
-		m_total += n2.total();
+		Policy::aggregate(m_total, n2.total());
 		g_node_count++;
 		assign(0, n1);
 		assign(1, n2);
@@ -70,8 +72,8 @@ public:
 		::serialize(out, size());
 		for(size_t i = 0; i < size(); i++)
 		{
-			::serialize(out, key(i));
-			::serialize(out, val(i));
+			Policy::serialize(out, key(i));
+			Policy::serialize(out, val(i));
 			if (m_height != 0)
 			{
 				off_t child_loc = ptr(i).get_offset();
@@ -89,10 +91,10 @@ public:
 		::deserialize(in, count);
 		for(size_t i = 0; i < count; i++)
 		{
-			Key key;
-			Value val;
-			::deserialize(cache.get_context(), in, key);
-			::deserialize(cache.get_context(), in, val);
+			key_t key;
+			value_t val;
+			Policy::deserialize(in, key);
+			Policy::deserialize(in, val);
 			if (m_height != 0)
 			{
 				off_t child_loc;
@@ -137,14 +139,14 @@ public:
 	};
 
 	template<class Updater> 
-	update_result update(cache_t& cache, const Key& k, ptr_t& peer, bnode*& split, const Updater& updater)
+	update_result update(cache_t& cache, const key_t& k, ptr_t& peer, bnode*& split, const Updater& updater)
 	{
 		if (m_height == 0)
 		{
 			// This node is a leaf
 			// Declare variables for updater
 			bool exists = true;
-			Value v;
+			value_t v;
 
 			// Try to find existing entry
 			size_t i = find(k);
@@ -255,20 +257,20 @@ public:
 
 	size_t size() const { return m_size; }
 	size_t height() const { return m_height; }
-	const Key& key(size_t i) const { return m_keys[i]; }
-	const Value& val(size_t i) const { return m_values[i]; }
-	const Value& total() const { return m_total; }
+	const key_t& key(size_t i) const { return m_keys[i]; }
+	const value_t& val(size_t i) const { return m_values[i]; }
+	const value_t& total() const { return m_total; }
 	const ptr_t& ptr(size_t i) const { return m_ptrs[i]; } 
 	ptr_t& ptr(size_t i) { return m_ptrs[i]; } 
 
-	size_t lower_bound(const Key& k) const 
-	{ return std::lower_bound(m_keys, m_keys + m_size, k) - m_keys; }
-	size_t upper_bound(const Key& k) const 
-	{ return std::upper_bound(m_keys, m_keys + m_size, k) - m_keys; }
-	size_t find(const Key& k) const
+	size_t lower_bound(const key_t& k) const 
+	{ return std::lower_bound(m_keys, m_keys + m_size, k, Policy::less_then) - m_keys; }
+	size_t upper_bound(const key_t& k) const 
+	{ return std::upper_bound(m_keys, m_keys + m_size, k, Policy::less_then) - m_keys; }
+	size_t find(const key_t& k) const
 	{
 		size_t i = lower_bound(k);
-		if (i != m_size && m_keys[i] == k) return i;
+		if (i != m_size && !Policy::less_then(k, m_keys[i])) return i;
 		return m_size;
 	}
 
@@ -347,7 +349,7 @@ public:
 
 private:
 	// Find the entry for a key
-	size_t find_by_key(const Key& k)
+	size_t find_by_key(const key_t& k)
 	{
 		size_t i = upper_bound(k);
 		if (i != 0) i--;
@@ -367,7 +369,7 @@ private:
 		m_ptrs[i] = m_ptrs[j];
 	}
 
-	void insert(const Key& k, const Value& v, const ptr_t& down)
+	void insert(const key_t& k, const value_t& v, const ptr_t& down)
 	{
 		int loc = (int) lower_bound(k);
 		for(int i = m_size; i > loc; i--)
@@ -390,8 +392,8 @@ private:
 			copy_entry(i, i+diff);
 		for(int i = m_size - diff; i < (int) m_size; i++)
 		{
-			m_keys[i] = Key();
-			m_values[i] = Value();
+			m_keys[i] = key_t();
+			m_values[i] = value_t();
 			m_ptrs[i].clear();
 		}
 			
@@ -400,16 +402,16 @@ private:
 	void erase(size_t loc) { erase(loc, loc+1); }
 
 public:
-	Value compute_total() const
+	value_t compute_total() const
 	{
 		// Initialize return value via copy construction
 		// Always guarenteed to have 1 element, no need for default construction
 		// this way, which helps with implemention of 'min' accumulators
-		Value total = val(0);
+		value_t total = val(0);
 		// Do the rest of the entries
 		for(size_t i = 1; i < size(); i++)
 		{
-			total += val(i);
+			Policy::aggregate(total, val(i));
 		}
 		return total;
 	}
@@ -446,8 +448,8 @@ private:
 		// Erase them from me
 		for(size_t i = keep_size; i < size(); i++)
 		{
-			m_keys[i] = Key();
-			m_values[i] = Value();
+			m_keys[i] = key_t();
+			m_values[i] = value_t();
 			m_ptrs[i].clear();
 		}
 	
@@ -489,7 +491,7 @@ private:
 		if (peer->size() > min_size)
 		{
 			// Get the appropriate peer entry
-			size_t pi = (peer->key(0) < key(0)) 
+			size_t pi = (Policy::less_then(peer->key(0), key(0))) 
 					? peer->size() - 1 // Last of peer before me
 					: 0 // First of peer after me
 					;
@@ -520,10 +522,10 @@ private:
 
 private:
 	int m_height;  // The height of this node (0 = leaf)
-	Value m_total;  // Total of all down entries, cached
+	value_t m_total;  // Total of all down entries, cached
 	size_t m_size;
-	Key m_keys[max_size + 1];  // All my keys
-	Value m_values[max_size + 1];  // All my values
+	key_t m_keys[max_size + 1];  // All my keys
+	value_t m_values[max_size + 1];  // All my values
 	ptr_t m_ptrs[max_size + 1];  // All my pointers
 };
 
