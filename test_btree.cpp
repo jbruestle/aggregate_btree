@@ -16,11 +16,13 @@
 */
 
 #include "serial.h"
+#include "file_bstore.h"
 
 struct int_int_policy
 {
 	typedef int key_t;
 	typedef int value_t;
+	typedef file_bstore store_t;
 	typedef void* context_t;
 	static void aggregate(int& out, const int& in) { out += in; }
 	static bool less_then(const int& a, const int& b) { return a < b; }
@@ -197,14 +199,14 @@ public:
 		return mock_snapshot(m_btree.get_snapshot(), m_mtree);
 	}
 
-	void open(const std::string& name, bool create)
+	void attach(file_bstore& fbs)
 	{
-		m_btree.open(name, create);
+		m_btree.attach(fbs);
 	}
 
-	void close()
+	void detach()
 	{
-		m_btree.close();
+		m_btree.detach();
 	}
 
 	void sync()
@@ -283,7 +285,9 @@ int main()
 		snaps.push_back(t.get_snapshot());
 
 	system("rm -r /tmp/lame_tree");
-	t.open("/tmp/lame_tree", true);
+	file_bstore fbs;
+	fbs.open("/tmp/lame_tree", true);
+	t.attach(fbs);
 	for(size_t i = 0; i < k_op_count; i++)
 	{
 		if (i % 1000 == 0)
@@ -294,9 +298,11 @@ int main()
 				printf("Node count = %d\n", (int) g_node_count);
 				printf("Closing trr\n");
 				snaps.clear();
-				t.close();
+				t.detach();
 				printf("Node count = %d\n", (int) g_node_count);
-				t.open("/tmp/lame_tree", false);
+				fbs.close();
+				fbs.open("/tmp/lame_tree", false);
+				t.attach(fbs);
 				for(size_t i = 0; i < k_num_snapshots; i++)
 					snaps.push_back(t.get_snapshot());
 			}
@@ -445,7 +451,8 @@ int main()
 		if (noisy) printf("Erasing %d\n", val);
 		t.update(val, always_erase());
 	}
-	t.close();
+	t.detach();
+	fbs.close();
 	printf("Node count = %d\n", (int) g_node_count);
 	assert(true);
 }

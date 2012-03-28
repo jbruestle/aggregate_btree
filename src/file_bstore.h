@@ -15,19 +15,18 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef __bstore_h__
-#define __bstore_h__
+#ifndef __file_bstore_h__
+#define __file_bstore_h__
 
 #include <boost/thread.hpp>
 #include <vector>
 #include <map>
 
-#include "bdecl.h"
 #include "vector_io.h"
 #include "file_io.h"
 #include "serial.h"
 
-class bstore_base
+class file_bstore
 {
 	const static off_t k_goal_slab_size = 100*1024;  // 100 Kb slabs
 
@@ -42,12 +41,20 @@ class bstore_base
 	typedef boost::unique_lock<mutex_t> lock_t;
 
 public:
-	bstore_base();
-
-	void close();  // Closes a bstroe
+	// Direct user API
+	file_bstore();
+	~file_bstore();
 	void open(const std::string& dir, bool create = false);  // Opens, maybe creates
+	void close();  // Closes a bstroe
+
+	// Required API to bcache
+	off_t write_node(const std::vector<char>& record);
+	off_t write_root(const std::vector<char>& record);
+	void read_node(off_t which, std::vector<char>& record);
+	void read_root(off_t which, std::vector<char>& record);
 	off_t get_root() { lock_t lock(m_mutex); return m_root; }
 	void clear_before(off_t lowest);
+
 protected:
 	void next_file(); // Create a new output file
 	void add_file(const std::string& name); // Add a new i/o file
@@ -59,7 +66,7 @@ protected:
 	off_t write_record(char prefix, const std::vector<char>& record);  
 	bool read_record(file_io* f, char& prefix, std::vector<char>& record);  
 	bool read_record(off_t offset, char& prefix, std::vector<char>& record);  
-	
+	void safe_read_record(off_t offset, char req_prefix, std::vector<char>& record);
 
 	off_t m_size;  // The current 'logical size'
 	off_t m_root;  // The current root offset
@@ -68,56 +75,6 @@ protected:
 	file_io* m_cur_slab;  // The current slab
 	slabs_t m_slabs;  // All the slabs
 	mutex_t m_mutex;  // IO mutex, could be per slab, but I'm lazy
-};
-
-template<class Policy>
-class bstore : public bstore_base
-{
-	typedef bcache<Policy> cache_t;
-	typedef bnode<Policy> node_t;
-public:
-	off_t write_node(const node_t& bnode)
-	{
-		std::vector<char> buf;
-		vector_writer io(buf);
-		bnode.serialize(io);
-		off_t r = write_record('N', buf);
-		return r;
-	}
-
-	void write_root(off_t off, off_t oldest)
-	{
-		std::vector<char> buf;
-		vector_writer io(buf);
-		serialize(io, off);
-		serialize(io, oldest); 
-		off_t r = write_record('R', buf);
-		m_root = r;
-	}
-	
-
-	void read_node(off_t loc, node_t& bnode, cache_t& cache)
-	{
-		std::vector<char> buf;
-		char prefix = 0;
-		read_record(loc, prefix, buf);
-		if (prefix != 'N')
-			throw io_exception("Invalid prefix in read_node");
-		vector_reader io(buf);
-		bnode.deserialize(io, cache);
-	}
-
-	void read_root(off_t loc, off_t& off, off_t& oldest)
-	{
-		std::vector<char> buf;
-		char prefix = 0;
-		read_record(loc, prefix, buf);
-		if (prefix != 'R')
-			throw io_exception("Invalid prefix in read_root");
-		vector_reader io(buf);
-		deserialize(io, off);
-		deserialize(io, oldest);
-	}
 };
 
 #endif

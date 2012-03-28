@@ -18,36 +18,24 @@
 #include <stdlib.h>
 #include <dirent.h>
 #include <sys/stat.h>
-#include "bstore.h"
+#include "file_bstore.h"
 #include "serial.h"
 
-bstore_base::bstore_base() 
+file_bstore::file_bstore() 
 	: m_size(0)
 	, m_root(0)
 	, m_next_slab(0)
 	, m_cur_slab(NULL)
 {}
 
-void bstore_base::close()
+file_bstore::~file_bstore()
 {
-	lock_t lock(m_mutex);
-
-	// Close any open files (m_cur_slab is also in m_slabs)
-	for(slabs_t::const_iterator it = m_slabs.begin(); it != m_slabs.end(); ++it)
-		delete it->second.io;
-
-	// Clear all variables
-	m_slabs.clear();
-	m_cur_slab = NULL;
-	m_size = 0;
-	m_root = 0;
-	m_dir = "";
-	m_next_slab = 0;
+	close();
 }
 
 // Open existing 'tree', returns location of root or 0 if new tree (dir was empty)
 // Throws on an error, creates a new directory if there isn't one and create is true
-void bstore_base::open(const std::string& dir, bool create) 
+void file_bstore::open(const std::string& dir, bool create) 
 {
 	lock_t lock(m_mutex);
 
@@ -89,7 +77,49 @@ void bstore_base::open(const std::string& dir, bool create)
 		next_file();
 }
 
-void bstore_base::clear_before(off_t offset)
+void file_bstore::close()
+{
+	lock_t lock(m_mutex);
+
+	// Close any open files (m_cur_slab is also in m_slabs)
+	for(slabs_t::const_iterator it = m_slabs.begin(); it != m_slabs.end(); ++it)
+		delete it->second.io;
+
+	// Clear all variables
+	m_slabs.clear();
+	m_cur_slab = NULL;
+	m_size = 0;
+	m_root = 0;
+	m_dir = "";
+	m_next_slab = 0;
+}
+
+off_t file_bstore::write_node(const std::vector<char>& record) 
+{ 
+	lock_t lock(m_mutex); 
+	return write_record('N', record); 
+}
+
+off_t file_bstore::write_root(const std::vector<char>& record) 
+{ 
+	lock_t lock(m_mutex); 
+	m_root = write_record('R', record); 
+	return m_root; 
+}
+
+void file_bstore::read_node(off_t which, std::vector<char>& record) 
+{ 
+	lock_t lock(m_mutex);
+	safe_read_record(which, 'N', record);
+}
+
+void file_bstore::read_root(off_t which, std::vector<char>& record)
+{
+	lock_t lock(m_mutex);
+	safe_read_record(which, 'R', record);
+}
+
+void file_bstore::clear_before(off_t offset)
 {
 	lock_t lock(m_mutex);
 
@@ -98,13 +128,13 @@ void bstore_base::clear_before(off_t offset)
 	for(slabs_t::iterator it = m_slabs.begin(); it != itEnd; ++it)
 	{
 		it->second.io->close();
-		printf("Deleting %d, %s\n", (int) it->first, it->second.name.c_str());
+		//printf("Deleting %d, %s\n", (int) it->first, it->second.name.c_str());
 		unlink(it->second.name.c_str());
 	}
 	m_slabs.erase(m_slabs.begin(), itEnd);
 }
 		
-off_t bstore_base::find_root(off_t offset, file_io* f)
+off_t file_bstore::find_root(off_t offset, file_io* f)
 {
 	off_t best_root = 0;
 	char prefix = 0;
@@ -120,7 +150,7 @@ off_t bstore_base::find_root(off_t offset, file_io* f)
 	return best_root;
 }
 
-off_t bstore_base::find_root()
+off_t file_bstore::find_root()
 {
 	off_t best_root = 0;
 	slabs_t::reverse_iterator it = m_slabs.rbegin();
@@ -134,10 +164,8 @@ off_t bstore_base::find_root()
 	return best_root;
 }
 
-off_t bstore_base::write_record(char prefix, const std::vector<char>& record)
+off_t file_bstore::write_record(char prefix, const std::vector<char>& record)
 {
-	lock_t lock(m_mutex);
-
 	off_t r = m_size;
 	size_t slab_start = m_slabs.rbegin()->first;
 	m_cur_slab->seek_end();
@@ -150,10 +178,8 @@ off_t bstore_base::write_record(char prefix, const std::vector<char>& record)
 	return r;
 }
 
-bool bstore_base::read_record(file_io* file, char& prefix, std::vector<char>& record)
+bool file_bstore::read_record(file_io* file, char& prefix, std::vector<char>& record)
 {
-	lock_t lock(m_mutex);
-
 	if (!file->read(&prefix, 1))
 		return false;
 	size_t s;
@@ -164,7 +190,7 @@ bool bstore_base::read_record(file_io* file, char& prefix, std::vector<char>& re
 	return true;
 }
 
-bool bstore_base::read_record(off_t offset, char& prefix, std::vector<char>& record)
+bool file_bstore::read_record(off_t offset, char& prefix, std::vector<char>& record)
 {
 	if (offset == m_size)
 		return false;
@@ -182,7 +208,15 @@ bool bstore_base::read_record(off_t offset, char& prefix, std::vector<char>& rec
 	return true;
 }
 
-void bstore_base::next_file()
+void file_bstore::safe_read_record(off_t offset, char req_prefix, std::vector<char>& record) 
+{ 
+	char prefix; 
+	bool r = read_record(offset, prefix, record); 
+	if (!r) throw io_exception("EOF in read of data"); 
+	if (prefix != req_prefix) throw io_exception("Mismatched prefix"); 
+}
+
+void file_bstore::next_file()
 {
 	file_info fi;
 	fi.name = m_dir + "/" + printstring("data_%d", m_next_slab++);
@@ -195,7 +229,7 @@ void bstore_base::next_file()
 	write_record('S', buf);
 }
 
-void bstore_base::add_file(const std::string& name)
+void file_bstore::add_file(const std::string& name)
 {
 	file_info fi;
 	fi.name = m_dir + "/" + name;

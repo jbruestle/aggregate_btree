@@ -31,10 +31,10 @@ class bcache
 	typedef bnode<Policy> node_t;
 	typedef bnode_proxy<Policy> proxy_t;
 	typedef bnode_ptr<Policy> ptr_t;
-	typedef bstore<Policy> store_t;
 	typedef boost::recursive_mutex mutex_t;
 	typedef boost::unique_lock<mutex_t> lock_t;
 	typedef typename Policy::context_t context_t;
+	typedef typename Policy::store_t store_t;
 
 public:
 	bcache(size_t max_unwritten_size, size_t max_lru_size, const context_t& context)
@@ -100,7 +100,7 @@ public:
 			m_mutex.unlock(); // Lock count should be exactly 0 (pin in nonrecursive)
 			// Load node outside of lock
 			node_t* node = new node_t(0);
-			m_store.read_node(proxy.m_off, *node, *this);
+			read_node(proxy.m_off, *node);
 			m_mutex.lock();  // Relock
 			proxy.m_ptr = node;
 			proxy.m_state = proxy_t::cached; // Set state to cached
@@ -166,17 +166,17 @@ public:
 		return ptr_t(r);
 	}
 
-	ptr_t open(const std::string& dir, bool create)
+	ptr_t attach(store_t* store)
 	{
-		close();
-		m_store.open(dir, create);
-		off_t root_off = m_store.get_root();
+		detach();
+		m_store = store;
+		off_t root_off = m_store->get_root();
 		ptr_t r;
 		if (root_off != 0)
 		{
 			off_t root_node;
 			off_t root_oldest;
-			m_store.read_root(root_off, root_node, root_oldest);
+			read_root(root_off, root_node, root_oldest);
 			r = lookup(root_node, root_oldest);
 		}
 		return r;
@@ -200,7 +200,7 @@ public:
 			size_t oldest = proxy.m_oldest;
 			// Write the root info outside of the lock
 			m_mutex.unlock();
-			m_store.write_root(off, oldest);
+			write_root(off, oldest);
 			m_mutex.lock();
 			// Remove excess cached nodes
 			while(m_lru.size() > 0)
@@ -209,18 +209,18 @@ public:
 			ll = lowest_loc();
 		}
 		// Clear excess written data outside of the lock
-		m_store.clear_before(ll);
+		m_store->clear_before(ll);
 	}
 
 	// Does writes
-	void close()
+	void detach()
 	{
 		lock_t lock(m_mutex);
 		while(m_unwritten.size() > 0)
 			write_front(lock);
 		while(m_lru.size() > 0)
 			reduce_lru();
-		m_store.close();
+		m_store = NULL;
 	}
 
 	const context_t& get_context() { return m_context; }
@@ -248,7 +248,7 @@ private:
 		const node_t* node = proxy.m_ptr;
 		m_mutex.unlock();
 		// Do actual write outside of lock
-		off_t off = m_store.write_node(*node);
+		off_t off = write_node(*node);
 		m_mutex.lock();
 		// Now change node state yet again
 		m_in_write = false;
@@ -281,8 +281,43 @@ private:
 			delete &proxy;
 		}
 	}
+
+        off_t write_node(const node_t& bnode)
+        {
+                std::vector<char> buf;
+                vector_writer io(buf);
+                bnode.serialize(io);
+                off_t r = m_store->write_node(buf);
+                return r;
+        }
+
+        void write_root(off_t off, off_t oldest)
+        {
+                std::vector<char> buf;
+                vector_writer io(buf);
+                serialize(io, off);
+                serialize(io, oldest); 
+                off_t r = m_store->write_root(buf);
+        }
+
+	void read_node(off_t loc, node_t& bnode) 
+	{ 
+		std::vector<char> buf; 
+		m_store->read_node(loc, buf); 
+		vector_reader io(buf); 
+		bnode.deserialize(io, *this);
+	}
+
+	void read_root(off_t loc, off_t& off, off_t& oldest)
+	{
+		std::vector<char> buf;
+		m_store->read_root(loc, buf);
+		vector_reader io(buf);
+		deserialize(io, off);
+		deserialize(io, oldest);
+	}
 		
-	store_t m_store;
+	store_t* m_store;
 	mutex_t m_mutex;	
 	size_t m_max_unwritten_size;
 	size_t m_max_lru_size;

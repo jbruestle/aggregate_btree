@@ -22,7 +22,6 @@
 #include "bnode_ptr.h"
 #include "bnode_proxy.h"
 #include "bcache.h"
-#include "bstore.h"
 #include "biter.h"
 #include "bsnapshot.h"
 
@@ -33,6 +32,7 @@ class btree
 	typedef bnode_ptr<Policy> ptr_t;
 	typedef typename Policy::key_t key_t;
 	typedef typename Policy::value_t value_t;
+	typedef typename Policy::store_t store_t;
 	typedef typename Policy::context_t context_t;
 public:
 	typedef bsnapshot<Policy> snapshot_t;
@@ -157,18 +157,18 @@ public:
 		return m_root.validate(m_height - 1, true);	
 	}
 
-	void open(const std::string& dir, bool create) 
+	void attach(store_t& store) 
 	{
-		close();
-		m_root = m_cache.open(dir, create);
+		detach();
+		m_root = m_cache.attach(&store);
 	}
 	
-	void close()
+	void detach()
 	{
 		if (m_root != ptr_t())
 			m_cache.sync(m_root);
 		m_root = ptr_t();
-		m_cache.close();
+		m_cache.detach();
 	}
 
 	void sync()
