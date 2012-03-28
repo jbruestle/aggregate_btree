@@ -45,7 +45,7 @@ public:
 		{
 			assert(root != ptr_t());
 			m_nodes[0] = root;
-			m_iters[0] = root.size();
+			m_iters[0] = root->size();
 		}
 	}
 
@@ -99,7 +99,7 @@ private:
 		while(it != end)
 		{
 			value_t new_val = start;
-			new_val += node.val(it);
+			new_val += node->val(it);
 			if (threshold(new_val))
 				break;
 			start = new_val;
@@ -127,10 +127,10 @@ public:
 			if (non_end && m_nodes[cur] == end.m_nodes[cur])
 				walk_until(threshold, start, m_nodes[cur], m_iters[cur], end.m_iters[cur]);
 			else
-				walk_until(threshold, start, m_nodes[cur], m_iters[cur], m_nodes[cur].size());
+				walk_until(threshold, start, m_nodes[cur], m_iters[cur], m_nodes[cur]->size());
 			//printf("Post walk: total = %d\n", start);
 
-			if (m_iters[cur] != m_nodes[cur].size())
+			if (m_iters[cur] != m_nodes[cur]->size())
 				break;
 
 			// If we are about to walk off the whole tree, we are at end
@@ -145,7 +145,7 @@ public:
 		//printf("Walking down\n");
 		while(cur + 1 < (int) m_height)
 		{
-			m_nodes[cur+1] = m_nodes[cur].ptr(m_iters[cur]);
+			m_nodes[cur+1] = m_nodes[cur]->ptr(m_iters[cur]);
 			m_iters[cur+1] = 0;
 			cur++;
 			
@@ -153,11 +153,11 @@ public:
 			if (non_end && m_nodes[cur] == end.m_nodes[cur])
 				walk_until(threshold, start, m_nodes[cur], m_iters[cur], end.m_iters[cur]);
 			else
-				walk_until(threshold, start, m_nodes[cur], m_iters[cur], m_nodes[cur].size());
+				walk_until(threshold, start, m_nodes[cur], m_iters[cur], m_nodes[cur]->size());
 			//printf("Post walk: total = %d\n", start);
 		}
-		m_pair.first = m_nodes[m_height-1].key(m_iters[m_height-1]);
-		m_pair.second= m_nodes[m_height-1].val(m_iters[m_height-1]);
+		m_pair.first = m_nodes[m_height-1]->key(m_iters[m_height-1]);
+		m_pair.second= m_nodes[m_height-1]->val(m_iters[m_height-1]);
 	}
 
 	// Set this iterator to the tree begin
@@ -167,11 +167,11 @@ public:
 		for(size_t i = 0; i + 1 < m_height; i++)
 		{
 			m_iters[i] = 0;
-			m_nodes[i+1] = m_nodes[i].ptr(m_iters[i]);	
+			m_nodes[i+1] = m_nodes[i]->ptr(m_iters[i]);	
 		}
 		m_iters[m_height - 1] = 0;
-		m_pair.first = m_nodes[m_height-1].key(m_iters[m_height-1]);
-		m_pair.second= m_nodes[m_height-1].val(m_iters[m_height-1]);
+		m_pair.first = m_nodes[m_height-1]->key(m_iters[m_height-1]);
+		m_pair.second= m_nodes[m_height-1]->val(m_iters[m_height-1]);
 	}
 
 	void set_rbegin()
@@ -179,12 +179,12 @@ public:
 		if (m_height == 0) return;
 		for(size_t i = 0; i + 1 < m_height; i++)
 		{
-			m_iters[i] = m_nodes[i].size() - 1;
-			m_nodes[i+1] = m_nodes[i].ptr(m_iters[i]);	
+			m_iters[i] = m_nodes[i]->size() - 1;
+			m_nodes[i+1] = m_nodes[i]->ptr(m_iters[i]);	
 		}
-		m_iters[m_height - 1] = m_nodes[m_height - 1].size() - 1;
-		m_pair.first = m_nodes[m_height-1].key(m_iters[m_height-1]);
-		m_pair.second= m_nodes[m_height-1].val(m_iters[m_height-1]);
+		m_iters[m_height - 1] = m_nodes[m_height - 1]->size() - 1;
+		m_pair.first = m_nodes[m_height-1]->key(m_iters[m_height-1]);
+		m_pair.second= m_nodes[m_height-1]->val(m_iters[m_height-1]);
 	}
 
 	// Set this iterator to the tree end
@@ -194,7 +194,7 @@ public:
 		if (m_height == 0)
 			return;
 		// Set the top of the stack to end
-		m_iters[0] = m_nodes[0].size();
+		m_iters[0] = m_nodes[0]->size();
 	}
 
 	void set_find(const key_t& k)
@@ -209,17 +209,17 @@ public:
 	{
 		if (m_height == 0)
 			return;
-		if (!Policy::less_then(m_nodes[0].key(0), k))
+		if (!Policy::less_then(m_nodes[0]->key(0), k))
 		{
 			set_begin();
 			return;
 		}
 		for(size_t i = 0; i + 1 < m_height;i++)
 		{
-			m_iters[i] = m_nodes[i].lower_bound(k) - 1;
-			m_nodes[i+1] = m_nodes[i].ptr(m_iters[i]);
+			m_iters[i] = m_nodes[i]->lower_bound(k) - 1;
+			m_nodes[i+1] = m_nodes[i]->ptr(m_iters[i]);
 		}
-		m_iters[m_height - 1] = m_nodes[m_height-1].lower_bound(k);
+		m_iters[m_height - 1] = m_nodes[m_height-1]->lower_bound(k);
 		m_iters[m_height - 1]--;
 		increment();
 	}
@@ -228,17 +228,17 @@ public:
 	{
 		if (m_height == 0)
 			return;
-		if (Policy::less_then(k, m_nodes[0].key(0)))
+		if (Policy::less_then(k, m_nodes[0]->key(0)))
 		{
 			set_begin();
 			return;
 		}
 		for(size_t i = 0; i + 1 < m_height;i++)
 		{
-			m_iters[i] = m_nodes[i].upper_bound(k) - 1;
-			m_nodes[i+1] = m_nodes[i].ptr(m_iters[i]);
+			m_iters[i] = m_nodes[i]->upper_bound(k) - 1;
+			m_nodes[i+1] = m_nodes[i]->ptr(m_iters[i]);
 		}
-		m_iters[m_height - 1] = m_nodes[m_height-1].upper_bound(k);
+		m_iters[m_height - 1] = m_nodes[m_height-1]->upper_bound(k);
 		m_iters[m_height - 1]--;
 		increment();
 	}
@@ -252,7 +252,7 @@ public:
 		int cur = m_height - 1;
 		m_iters[cur]++;
 		// If we hit the end at our current level, move up and increment
-		while(m_iters[cur] == m_nodes[cur].size())
+		while(m_iters[cur] == m_nodes[cur]->size())
 		{
 			cur--;
 			if (cur < 0)
@@ -263,12 +263,12 @@ public:
 		cur++;
 		while(cur < (int) m_height)
 		{
-			m_nodes[cur] = m_nodes[cur -1].ptr(m_iters[cur-1]);	
+			m_nodes[cur] = m_nodes[cur -1]->ptr(m_iters[cur-1]);	
 			m_iters[cur] = 0;
 			cur++;
 		}
-		m_pair.first = m_nodes[m_height-1].key(m_iters[m_height-1]);
-		m_pair.second= m_nodes[m_height-1].val(m_iters[m_height-1]);
+		m_pair.first = m_nodes[m_height-1]->key(m_iters[m_height-1]);
+		m_pair.second= m_nodes[m_height-1]->val(m_iters[m_height-1]);
 	}
 
 	void decrement()
@@ -294,16 +294,16 @@ public:
 		cur++;
 		while(cur < (int) m_height)
 		{
-			m_nodes[cur] = m_nodes[cur-1].ptr(m_iters[cur-1]);	
-			m_iters[cur] = m_nodes[cur].size();
+			m_nodes[cur] = m_nodes[cur-1]->ptr(m_iters[cur-1]);	
+			m_iters[cur] = m_nodes[cur]->size();
 			m_iters[cur]--;
 			cur++;
 		}
-		m_pair.first = m_nodes[m_height-1].key(m_iters[m_height-1]);
-		m_pair.second= m_nodes[m_height-1].val(m_iters[m_height-1]);
+		m_pair.first = m_nodes[m_height-1]->key(m_iters[m_height-1]);
+		m_pair.second= m_nodes[m_height-1]->val(m_iters[m_height-1]);
 	}
 
-	bool is_end() const { return m_height == 0 || m_iters[0] == m_nodes[0].size(); }
+	bool is_end() const { return m_height == 0 || m_iters[0] == m_nodes[0]->size(); }
 	const std::pair<key_t, value_t>& get_pair() const { 
 		assert(!is_end()); 
 		return m_pair; 

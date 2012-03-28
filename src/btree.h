@@ -65,7 +65,7 @@ public:
 		}
 
 		// Let's try running the update
-		node_t* w_root = m_root.copy();
+		node_t* w_root = m_root->copy();
 		node_t* overflow = NULL;
 		ptr_t peer;
 		typename node_t::update_result r = w_root->update(m_cache, k, peer, overflow, updater);
@@ -122,7 +122,7 @@ public:
 			return false;
 
 		// Otherwise, give it a go
-		node_t* w_root = m_root.copy();
+		node_t* w_root = m_root->copy();
 		bool r = w_root->load_below(m_cache, off);
 		if (r)
 			m_root = m_cache.new_node(w_root);
@@ -140,7 +140,7 @@ public:
 	void print() const
 	{
 		if (m_root != ptr_t())
-			m_root.print(0);
+			m_root->print(0);
 		printf("\n");
 	}
 
@@ -154,7 +154,7 @@ public:
 			printf("Root is null for non-zero height");
 			return false;
 		}
-		return m_root.validate(m_height - 1, true);	
+		return m_root->validate(m_height - 1, true);	
 	}
 
 	void attach(store_t& store) 

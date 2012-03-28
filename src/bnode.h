@@ -53,10 +53,10 @@ public:
 	// Make a new root node based on two nodes
 	bnode(size_t height, const ptr_t& n1, const ptr_t& n2)
 		: m_height(height)  // Compute our height
-		, m_total(n1.total())  // Compute an initial total
+		, m_total(n1->total())  // Compute an initial total
 		, m_size(2)
 	{
-		Policy::aggregate(m_total, n2.total());
+		Policy::aggregate(m_total, n2->total());
 		g_node_count++;
 		assign(0, n1);
 		assign(1, n2);
@@ -192,7 +192,7 @@ public:
 		size_t pi = (i == size()-1 ? i - 1 : i+1);
 
 		// Prepare node and it's peer for modification
-		bnode* new_node = ptr(i).copy();
+		bnode* new_node = ptr(i)->copy();
 		bnode* overflow = NULL;
 
 		// Run the recursive update 
@@ -222,8 +222,8 @@ public:
 			return split ? ur_split : ur_modify;
 		}
 		// We modified peer, update info
-		m_keys[pi] = m_ptrs[pi].key(0);
-		m_values[pi] = m_ptrs[pi].total();
+		m_keys[pi] = m_ptrs[pi]->key(0);
+		m_values[pi] = m_ptrs[pi]->total();
 		if (r == ur_steal)
 		{
 			// Keep new node
@@ -247,7 +247,7 @@ public:
 		{
 			if (ptr(i).get_oldest() > min_offset)
 				continue;
-			bnode* new_node = m_ptrs[i].copy();
+			bnode* new_node = m_ptrs[i]->copy();
 			new_node->load_below(cache, min_offset);
 			m_ptrs[i] = cache.new_node(new_node);
 			return true;
@@ -282,7 +282,7 @@ public:
 				printf("  ");
 			printf("%d: %d\n", key(i), val(i));
 			if (ptr(i) != ptr_t())
-				ptr(i).print(indent+1);
+				ptr(i)->print(indent+1);
 		}
 	}
 
@@ -318,19 +318,19 @@ public:
 					printf("NULL down point on non-zero height");
 					return false;
 				}
-				if (!ptr(i).validate(goal_height - 1, false))
+				if (!ptr(i)->validate(goal_height - 1, false))
 					return false;
 				
-				if (ptr(i).key(0) != key(i))
+				if (ptr(i)->key(0) != key(i))
 				{
 					printf("Down key does not equal first key of down node");
-					printf("Down key = %d, it key = %d", ptr(i).key(0), key(i));
+					printf("Down key = %d, it key = %d", ptr(i)->key(0), key(i));
 					return false;
 				}
-				if (ptr(i).compute_total() != val(i))
+				if (ptr(i)->compute_total() != val(i))
 				{
 					printf("Failure of total data, key = %d, value %d vs %d", 
-						ptr(i).key(0), ptr(i).compute_total(), val(i));
+						ptr(i)->key(0), ptr(i)->compute_total(), val(i));
 					return false;
 				}
 			}
@@ -357,8 +357,8 @@ private:
 	}
 
 	void assign(size_t i, const ptr_t& newval) { 
-		m_keys[i] = newval.key(0);
-		m_values[i] = newval.total();
+		m_keys[i] = newval->key(0);
+		m_values[i] = newval->total();
 		m_ptrs[i] = newval;
 	}
 
@@ -382,7 +382,7 @@ private:
 	
 	void insert(const ptr_t& down)
 	{
-		insert(down.key(0), down.total(), down);
+		insert(down->key(0), down->total(), down);
 	}
 
 	void erase(size_t begin, size_t end)
@@ -486,7 +486,7 @@ private:
 			return ur_modify;
 		}
 		// We are going to modify peer, let's copy first
-		bnode* peer = peer_ptr.copy();
+		bnode* peer = peer_ptr->copy();
 		// Now we try to steal from peer
 		if (peer->size() > min_size)
 		{

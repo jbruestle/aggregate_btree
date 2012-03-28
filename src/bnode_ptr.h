@@ -52,55 +52,7 @@ public:
 
 	// HACK, used only for sync, fix this
 	proxy_t* get_proxy() const { return m_proxy; }
-
-	size_t size() const { 
-		pinned_t pp(m_proxy);
-		return pp->size();
-	}
-	key_t key(size_t i) const { 
-		pinned_t pp(m_proxy);
-		return pp->key(i); 
-	}
-	value_t val(size_t i) const { 
-		pinned_t pp(m_proxy);
-		return pp->val(i); 
-	}
-	value_t total() const { 
-		pinned_t pp(m_proxy);
-		return pp->total(); 
-	}
-	bnode_ptr ptr(size_t i) const 
-	{ 
-		pinned_t pp(m_proxy);
-		return pp->ptr(i); 
-	}
-	size_t lower_bound(const key_t& k) const { 
-		pinned_t pp(m_proxy);
-		return pp->lower_bound(k); 
-	}
-	size_t upper_bound(const key_t& k) const { 
-		pinned_t pp(m_proxy);
-		return pp->upper_bound(k); 
-	}
-	node_t *copy() const { 
-		pinned_t pp(m_proxy);
-		return pp->copy(); 
-	}
-
-	void print(int indent) const { 
-		pinned_t pp(m_proxy);
-		return pp->print(indent); 
-	}
-
-	bool validate(int goal_height, bool is_root) const { 
-		pinned_t pp(m_proxy);
-		return pp->validate(goal_height, is_root); 
-	}
-
-	value_t compute_total() const { 
-		pinned_t pp(m_proxy);
-		return pp->compute_total(); 
-	}
+	pinned_t operator->() const { return pinned_t(m_proxy); }
 
 	off_t get_offset() const {
 		assert(m_proxy);
