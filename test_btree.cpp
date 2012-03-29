@@ -32,6 +32,7 @@ struct int_int_policy
 	static const size_t max_size = 20;
 };
 
+#define __BTREE_DEBUG
 #include "btree.h"
 #include <map>
 
@@ -157,8 +158,8 @@ private:
 class mock_tree
 {
 public:
-	mock_tree() 
-		: m_btree(10, 20)
+	mock_tree(bcache<int_int_policy>& cache) 
+		: m_btree(cache)
 	{}
 
 	template<class Updater>
@@ -185,11 +186,6 @@ public:
 				m_mtree.erase(it);
 		}
 		assert(br == mr);
-		off_t lowest = m_btree.lowest_loc();
-		if (lowest != std::numeric_limits<off_t>::max())
-		{
-			m_btree.load_below(lowest);
-		}
 		return br;
 	}
 
@@ -199,24 +195,9 @@ public:
 		return mock_snapshot(m_btree.get_snapshot(), m_mtree);
 	}
 
-	void attach(file_bstore& fbs)
+	void sync(const std::string& name = "root")
 	{
-		m_btree.attach(fbs);
-	}
-
-	void detach()
-	{
-		m_btree.detach();
-	}
-
-	void sync()
-	{
-		m_btree.sync();
-	}
-	
-	void sync(mock_snapshot& s)
-	{
-		m_btree.sync(s.m_bsnap);
+		m_btree.sync(name);
 	}
 	
 	void print()
@@ -279,7 +260,8 @@ int main()
 {
 	printf("Testing btree\n");
 	printf("Node count = %d\n", (int) g_node_count);
-	mock_tree t;
+	bcache<int_int_policy> cache(10, 20, NULL);
+	mock_tree t(cache);
 	std::vector<mock_snapshot> snaps;
 	for(size_t i = 0; i < k_num_snapshots; i++)
 		snaps.push_back(t.get_snapshot());
@@ -287,7 +269,7 @@ int main()
 	system("rm -r /tmp/lame_tree");
 	file_bstore fbs;
 	fbs.open("/tmp/lame_tree", true);
-	t.attach(fbs);
+	cache.attach(fbs);
 	for(size_t i = 0; i < k_op_count; i++)
 	{
 		if (i % 1000 == 0)
@@ -298,11 +280,11 @@ int main()
 				printf("Node count = %d\n", (int) g_node_count);
 				printf("Closing trr\n");
 				snaps.clear();
-				t.detach();
+				cache.detach();
 				printf("Node count = %d\n", (int) g_node_count);
 				fbs.close();
 				fbs.open("/tmp/lame_tree", false);
-				t.attach(fbs);
+				cache.attach(fbs);
 				for(size_t i = 0; i < k_num_snapshots; i++)
 					snaps.push_back(t.get_snapshot());
 			}
@@ -451,7 +433,7 @@ int main()
 		if (noisy) printf("Erasing %d\n", val);
 		t.update(val, always_erase());
 	}
-	t.detach();
+	cache.detach();
 	fbs.close();
 	printf("Node count = %d\n", (int) g_node_count);
 	assert(true);

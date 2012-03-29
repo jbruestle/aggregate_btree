@@ -166,10 +166,10 @@ public:
 		return ptr_t(r);
 	}
 
-	ptr_t attach(store_t* store)
+	ptr_t attach(store_t& store)
 	{
 		detach();
-		m_store = store;
+		m_store = &store;
 		off_t root_off = m_store->get_root();
 		ptr_t r;
 		if (root_off != 0)
@@ -182,14 +182,18 @@ public:
 		return r;
 	}
 
-	void sync(const ptr_t& until)
+	void sync(const std::string& name, const ptr_t& until)
 	{
 		off_t ll;
 		{
 			lock_t lock(m_mutex);
 			// If sync is empty, don't bother
 			if (until == ptr_t()) 
+			{
+				std::vector<char> nothing;
+				m_store->write_root(name, nothing);
 				return;
+			}
 			// Get the node to sync to
 			proxy_t& proxy = *until.get_proxy();
 			// While it's not written, write more nodes
@@ -200,7 +204,7 @@ public:
 			size_t oldest = proxy.m_oldest;
 			// Write the root info outside of the lock
 			m_mutex.unlock();
-			write_root(off, oldest);
+			write_root(name, off, oldest);
 			m_mutex.lock();
 			// Remove excess cached nodes
 			while(m_lru.size() > 0)
@@ -291,13 +295,13 @@ private:
                 return r;
         }
 
-        void write_root(off_t off, off_t oldest)
+        void write_root(const std::string& name, off_t off, off_t oldest)
         {
                 std::vector<char> buf;
                 vector_writer io(buf);
                 serialize(io, off);
                 serialize(io, oldest); 
-                off_t r = m_store->write_root(buf);
+                off_t r = m_store->write_root(name, buf);
         }
 
 	void read_node(off_t loc, node_t& bnode) 

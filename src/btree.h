@@ -30,6 +30,7 @@ class btree
 {
 	typedef bnode<Policy> node_t;
 	typedef bnode_ptr<Policy> ptr_t;
+	typedef bcache<Policy> cache_t;
 	typedef typename Policy::key_t key_t;
 	typedef typename Policy::value_t value_t;
 	typedef typename Policy::store_t store_t;
@@ -37,14 +38,12 @@ class btree
 public:
 	typedef bsnapshot<Policy> snapshot_t;
 
-	btree(size_t max_unwritten, size_t max_cache, const context_t& context = context_t()) 
-		: m_cache(max_unwritten, max_cache, context)
+	btree(cache_t& cache)
+		: m_cache(cache)
 		, m_height(0)
 	{}
 
 public:
-	const context_t& get_context() { return m_cache.get_context(); }
-
 	template<class Updater>
 	bool update(const key_t& k, const Updater& updater)
 	{
@@ -106,37 +105,21 @@ public:
 			delete w_root;
 			m_height = 0;
 		}
+		clean_one();
 		return true;	
 	}
 
-	off_t lowest_loc()
-	{
-		if (m_root == ptr_t())
-			return std::numeric_limits<off_t>::max();
-		return m_root.get_oldest();
-	}
-
-	bool load_below(off_t off) 
-	{
-		if (m_root == ptr_t())
-			return false;
-
-		// Otherwise, give it a go
-		node_t* w_root = m_root->copy();
-		bool r = w_root->load_below(m_cache, off);
-		if (r)
-			m_root = m_cache.new_node(w_root);
-		else
-			delete w_root;
-
-		return r;
-	}
 
 	snapshot_t get_snapshot() const 
 	{ 
 		return snapshot_t(m_root, m_height); 
 	}
 
+	void sync(const std::string& name = "root") { m_cache.sync(name, m_root); }
+
+	cache_t& get_cache() { return m_cache; }
+
+#ifdef __BTREE_DEBUG
 	void print() const
 	{
 		if (m_root != ptr_t())
@@ -156,33 +139,40 @@ public:
 		}
 		return m_root->validate(m_height - 1, true);	
 	}
-
-	void attach(store_t& store) 
-	{
-		detach();
-		m_root = m_cache.attach(&store);
-	}
-	
-	void detach()
-	{
-		if (m_root != ptr_t())
-			m_cache.sync(m_root);
-		m_root = ptr_t();
-		m_cache.detach();
-	}
-
-	void sync()
-	{
-		m_cache.sync(m_root);
-	}
-
-	void sync(const snapshot_t& snapshot)
-	{
-		m_cache.sync(snapshot.m_root);
-	}
-
+#endif
 private:
-	mutable bcache<Policy> m_cache;
+	off_t lowest_loc()
+	{
+		if (m_root == ptr_t())
+			return std::numeric_limits<off_t>::max();
+		return m_root.get_oldest();
+	}
+
+	bool load_below(off_t off) 
+	{
+		if (m_root == ptr_t())
+			return false;
+
+		if (off == std::numeric_limits<off_t>::max())
+			return false;
+
+		// Otherwise, give it a go
+		node_t* w_root = m_root->copy();
+		bool r = w_root->load_below(m_cache, off);
+		if (r)
+			m_root = m_cache.new_node(w_root);
+		else
+			delete w_root;
+
+		return r;
+	}
+
+	void clean_one()
+	{
+		load_below(lowest_loc());
+	}
+
+	mutable bcache<Policy>& m_cache;
 	ptr_t m_root;
 	size_t m_height;
 };

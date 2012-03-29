@@ -100,7 +100,7 @@ off_t file_bstore::write_node(const std::vector<char>& record)
 	return write_record('N', record); 
 }
 
-off_t file_bstore::write_root(const std::vector<char>& record) 
+off_t file_bstore::write_root(const std::string& name, const std::vector<char>& record) 
 { 
 	lock_t lock(m_mutex); 
 	m_root = write_record('R', record); 
