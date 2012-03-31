@@ -37,8 +37,9 @@ class bcache
 	typedef typename Policy::store_t store_t;
 
 public:
-	bcache(size_t max_unwritten_size, size_t max_lru_size, const context_t& context)
-		: m_max_unwritten_size(max_unwritten_size)
+	bcache(store_t& store, size_t max_unwritten_size, size_t max_lru_size, const context_t& context)
+		: m_store(store)
+		, m_max_unwritten_size(max_unwritten_size)
 		, m_max_lru_size(max_lru_size)
 		, m_in_write(false)
 		, m_context(context)
@@ -166,23 +167,20 @@ public:
 		return ptr_t(r);
 	}
 
-	ptr_t attach(store_t& store)
+	void get_root(const std::string& name, ptr_t& root, size_t& height)
 	{
-		detach();
-		m_store = &store;
-		off_t root_off = m_store->get_root();
-		ptr_t r;
+		off_t root_off = m_store.get_root(name);
 		if (root_off != 0)
 		{
 			off_t root_node;
 			off_t root_oldest;
-			read_root(root_off, root_node, root_oldest);
-			r = lookup(root_node, root_oldest);
+			read_root(root_off, root_node, root_oldest, height);
+			if (root_node != 0)
+				root = lookup(root_node, root_oldest);
 		}
-		return r;
 	}
-
-	void sync(const std::string& name, const ptr_t& until)
+	
+	void sync(const std::string& name, const ptr_t& until, size_t height)
 	{
 		off_t ll;
 		{
@@ -191,7 +189,7 @@ public:
 			if (until == ptr_t()) 
 			{
 				std::vector<char> nothing;
-				m_store->write_root(name, nothing);
+				m_store.write_root(name, nothing);
 				return;
 			}
 			// Get the node to sync to
@@ -204,7 +202,7 @@ public:
 			size_t oldest = proxy.m_oldest;
 			// Write the root info outside of the lock
 			m_mutex.unlock();
-			write_root(name, off, oldest);
+			write_root(name, off, oldest, height);
 			m_mutex.lock();
 			// Remove excess cached nodes
 			while(m_lru.size() > 0)
@@ -213,18 +211,7 @@ public:
 			ll = lowest_loc();
 		}
 		// Clear excess written data outside of the lock
-		m_store->clear_before(ll);
-	}
-
-	// Does writes
-	void detach()
-	{
-		lock_t lock(m_mutex);
-		while(m_unwritten.size() > 0)
-			write_front(lock);
-		while(m_lru.size() > 0)
-			reduce_lru();
-		m_store = NULL;
+		m_store.clear_before(ll);
 	}
 
 	const context_t& get_context() { return m_context; }
@@ -291,37 +278,46 @@ private:
                 std::vector<char> buf;
                 vector_writer io(buf);
                 bnode.serialize(io);
-                off_t r = m_store->write_node(buf);
+                off_t r = m_store.write_node(buf);
                 return r;
         }
 
-        void write_root(const std::string& name, off_t off, off_t oldest)
+        void write_root(const std::string& name, off_t off, off_t oldest, size_t height)
         {
                 std::vector<char> buf;
                 vector_writer io(buf);
                 serialize(io, off);
                 serialize(io, oldest); 
-                off_t r = m_store->write_root(name, buf);
+                serialize(io, height); 
+                off_t r = m_store.write_root(name, buf);
         }
 
 	void read_node(off_t loc, node_t& bnode) 
 	{ 
 		std::vector<char> buf; 
-		m_store->read_node(loc, buf); 
+		m_store.read_node(loc, buf); 
 		vector_reader io(buf); 
 		bnode.deserialize(io, *this);
 	}
 
-	void read_root(off_t loc, off_t& off, off_t& oldest)
+	void read_root(off_t loc, off_t& off, off_t& oldest, size_t& height)
 	{
 		std::vector<char> buf;
-		m_store->read_root(loc, buf);
+		m_store.read_root(loc, buf);
+		if (buf.size() == 0)
+		{
+			off = 0;
+			oldest = std::numeric_limits<off_t>::max();
+			height = 0;
+			return;
+		}
 		vector_reader io(buf);
 		deserialize(io, off);
 		deserialize(io, oldest);
+		deserialize(io, height);
 	}
 		
-	store_t* m_store;
+	store_t& m_store;
 	mutex_t m_mutex;	
 	size_t m_max_unwritten_size;
 	size_t m_max_lru_size;

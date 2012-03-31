@@ -26,7 +26,8 @@ file_bstore::file_bstore()
 	, m_root(0)
 	, m_next_slab(0)
 	, m_cur_slab(NULL)
-{}
+{
+}
 
 file_bstore::~file_bstore()
 {

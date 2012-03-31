@@ -52,7 +52,7 @@ public:
 	off_t write_root(const std::string& name, const std::vector<char>& record);
 	void read_node(off_t which, std::vector<char>& record);
 	void read_root(off_t which, std::vector<char>& record);
-	off_t get_root() { lock_t lock(m_mutex); return m_root; }
+	off_t get_root(const std::string& name) { lock_t lock(m_mutex); return m_root; }
 	void clear_before(off_t lowest);
 
 protected:

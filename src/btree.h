@@ -24,6 +24,7 @@
 #include "bcache.h"
 #include "biter.h"
 #include "bsnapshot.h"
+#include <boost/iterator/iterator_facade.hpp>
 
 template<class Policy>
 class btree
@@ -38,10 +39,12 @@ class btree
 public:
 	typedef bsnapshot<Policy> snapshot_t;
 
-	btree(cache_t& cache)
+	btree(cache_t& cache, const std::string& name)
 		: m_cache(cache)
 		, m_height(0)
-	{}
+	{
+		m_cache.get_root(name, m_root, m_height);
+	}
 
 public:
 	template<class Updater>
@@ -109,13 +112,49 @@ public:
 		return true;	
 	}
 
+	typedef std::pair<key_t, value_t> value_type;
+	class const_iterator : public boost::iterator_facade<
+		const_iterator,
+		const value_type,
+		boost::bidirectional_traversal_tag>
+	{
+		friend class boost::iterator_core_access;
+		friend class btree;
+	public:
+		const_iterator() {}
+		const_iterator(const ptr_t& root, size_t height) 
+			: m_state(root, height) 
+			, m_self(*this)
+		{}
+	private:
+		mutable biter<Policy> m_state;
+		btree& m_self;
+		void increment() { maybe_update(); m_state.increment(); }
+		void decrement() { maybe_update(); m_state.decrement(); }
+		bool equal(const_iterator const& other) const 
+		{ 
+			other.maybe_update();
+			maybe_update();
+			return m_state == other.m_state; 
+		}
+		const value_type& dereference() const { maybe_update(); return m_state.get_pair(); }
+		void maybe_update() const
+		{
+			if (m_self.m_root != m_state.get_root() || m_self.m_height != m_state.get_height())
+			{
+				key_t k = m_state.get_key();
+				m_state = biter<Policy>(m_self.root, m_self.height);
+				m_state.set_find(m_state.get_key());
+			}
+		}
+	};
 
 	snapshot_t get_snapshot() const 
 	{ 
 		return snapshot_t(m_root, m_height); 
 	}
 
-	void sync(const std::string& name = "root") { m_cache.sync(name, m_root); }
+	void sync(const std::string& name) { m_cache.sync(name, m_root, m_height); }
 
 	cache_t& get_cache() { return m_cache; }
 

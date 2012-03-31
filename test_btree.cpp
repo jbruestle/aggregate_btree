@@ -158,8 +158,9 @@ private:
 class mock_tree
 {
 public:
-	mock_tree(bcache<int_int_policy>& cache) 
-		: m_btree(cache)
+	mock_tree(bcache<int_int_policy>& cache, const std::string& name, mtree_t& mt) 
+		: m_btree(cache, name)
+		, m_mtree(mt)
 	{}
 
 	template<class Updater>
@@ -219,7 +220,7 @@ public:
 
 private:
 	btree_t m_btree;
-	mtree_t m_mtree;
+	mtree_t& m_mtree;
 };
 
 class always_update
@@ -260,16 +261,16 @@ int main()
 {
 	printf("Testing btree\n");
 	printf("Node count = %d\n", (int) g_node_count);
-	bcache<int_int_policy> cache(10, 20, NULL);
-	mock_tree t(cache);
+	system("rm -r /tmp/lame_tree");
+	file_bstore *fbs = new file_bstore();
+	fbs->open("/tmp/lame_tree", true);
+	bcache<int_int_policy>* cache = new bcache<int_int_policy>(*fbs, 10, 20, NULL);
+	mtree_t mtree;
+	mock_tree* t = new mock_tree(*cache, "root", mtree);
 	std::vector<mock_snapshot> snaps;
 	for(size_t i = 0; i < k_num_snapshots; i++)
-		snaps.push_back(t.get_snapshot());
+		snaps.push_back(t->get_snapshot());
 
-	system("rm -r /tmp/lame_tree");
-	file_bstore fbs;
-	fbs.open("/tmp/lame_tree", true);
-	cache.attach(fbs);
 	for(size_t i = 0; i < k_op_count; i++)
 	{
 		if (i % 1000 == 0)
@@ -277,16 +278,20 @@ int main()
 			printf("Op %d\n", (int) i);
 			if (i % 3000 == 0)
 			{
+				snaps.clear();
 				printf("Node count = %d\n", (int) g_node_count);
 				printf("Closing trr\n");
-				snaps.clear();
-				cache.detach();
+				t->sync("root");
+				delete t;
+				delete cache;
+				delete fbs;
 				printf("Node count = %d\n", (int) g_node_count);
-				fbs.close();
-				fbs.open("/tmp/lame_tree", false);
-				cache.attach(fbs);
+				fbs = new file_bstore();
+				fbs->open("/tmp/lame_tree", false);
+				cache = new bcache<int_int_policy>(*fbs, 10, 20, NULL);
+				t = new mock_tree(*cache, "root", mtree);
 				for(size_t i = 0; i < k_num_snapshots; i++)
-					snaps.push_back(t.get_snapshot());
+					snaps.push_back(t->get_snapshot());
 			}
 		}
 		switch(random() % 11)
@@ -297,20 +302,20 @@ int main()
 			int k = random() % k_key_range;
 			int v = random() % k_value_range;
 			if (noisy) printf("Doing insert of %d\n", k);
-			t.update(k, always_update(v));
+			t->update(k, always_update(v));
 		}
 		break;
 		case 2:
 		{
 			int k = random() % k_key_range;
 			if (noisy) printf("Finding near %d\n", k);
-			mock_snapshot s = t.get_snapshot();
+			mock_snapshot s = t->get_snapshot();
 			mock_iterator it = s.lower_bound(k);
 			if (it != s.end())
 			{		
 				// TODO: Find an actual erasable element
 				if (noisy) printf("Near %d, Erasing %d\n", k, it->first);
-				t.update(it->first, always_erase());
+				t->update(it->first, always_erase());
 			}
 		}
 		break;
@@ -416,25 +421,26 @@ int main()
 		case 10:
 		{
 			if (noisy) printf("Copying snapshot\n");
-			snaps[random() % k_num_snapshots] = t.get_snapshot();	
+			snaps[random() % k_num_snapshots] = t->get_snapshot();	
 		}
 		break;
 		}
-		if (noisy) t.print();
-		if (!t.validate())
+		if (noisy) t->print();
+		if (!t->validate())
 			exit(1);
 	}
 	printf("Node count = %d\n", (int) g_node_count);
-	t.sync();
 	snaps.clear();
-	while(t.size() > 0)
+	while(t->size() > 0)
 	{
-		int val = t.get_snapshot().begin()->first;
+		int val = t->get_snapshot().begin()->first;
 		if (noisy) printf("Erasing %d\n", val);
-		t.update(val, always_erase());
+		t->update(val, always_erase());
 	}
-	cache.detach();
-	fbs.close();
+	t->sync("root");
+	delete t;
+	delete cache;
+	delete fbs;
 	printf("Node count = %d\n", (int) g_node_count);
 	assert(true);
 }

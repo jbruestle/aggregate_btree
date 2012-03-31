@@ -310,6 +310,8 @@ public:
 	}
 	const key_t& get_key() const { assert(!is_end()); return m_pair.first; }
 	const value_t& get_value() const { assert(!is_end()); return m_pair.second; }
+	ptr_t get_root() const { return m_nodes[0]; }
+	size_t get_height() const { return m_height; }
 
 private:
 	// The height of the tree we are attached to
