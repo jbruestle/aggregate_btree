@@ -23,7 +23,6 @@
 
 file_bstore::file_bstore() 
 	: m_size(0)
-	, m_root(0)
 	, m_next_slab(0)
 	, m_cur_slab(NULL)
 {
@@ -33,6 +32,15 @@ file_bstore::~file_bstore()
 {
 	close();
 }
+
+struct root_info
+{
+	std::string name;
+	std::vector<char> data;
+};
+
+
+
 
 // Open existing 'tree', returns location of root or 0 if new tree (dir was empty)
 // Throws on an error, creates a new directory if there isn't one and create is true
@@ -72,7 +80,6 @@ void file_bstore::open(const std::string& dir, bool create)
 		// Find next file
 		de = readdir(d);
 	}
-	m_root = find_root();
 	// If there was nothing, add a file
 	if (m_slabs.size() == 0)
 		next_file();
@@ -90,7 +97,6 @@ void file_bstore::close()
 	m_slabs.clear();
 	m_cur_slab = NULL;
 	m_size = 0;
-	m_root = 0;
 	m_dir = "";
 	m_next_slab = 0;
 }
@@ -101,11 +107,14 @@ off_t file_bstore::write_node(const std::vector<char>& record)
 	return write_record('N', record); 
 }
 
-off_t file_bstore::write_root(const std::string& name, const std::vector<char>& record) 
+void file_bstore::write_root(const std::string& name, const std::vector<char>& record) 
 { 
+	std::vector<char> name_cpy;
+	name_cpy.resize(name.size());
+	memcpy(&name_cpy[0], name.data(), name.size());
 	lock_t lock(m_mutex); 
-	m_root = write_record('R', record); 
-	return m_root; 
+	write_record('R', name_cpy);
+	write_record('D', record);	
 }
 
 void file_bstore::read_node(off_t which, std::vector<char>& record) 
@@ -114,10 +123,16 @@ void file_bstore::read_node(off_t which, std::vector<char>& record)
 	safe_read_record(which, 'N', record);
 }
 
-void file_bstore::read_root(off_t which, std::vector<char>& record)
+void file_bstore::read_root(const std::string& name, std::vector<char>& record)
 {
 	lock_t lock(m_mutex);
-	safe_read_record(which, 'R', record);
+	off_t data = find_root(name);
+	if (data == 0)
+	{
+		record.clear();
+		return;
+	}
+	safe_read_record(data, 'D', record);
 }
 
 void file_bstore::clear_before(off_t offset)
@@ -135,29 +150,33 @@ void file_bstore::clear_before(off_t offset)
 	m_slabs.erase(m_slabs.begin(), itEnd);
 }
 		
-off_t file_bstore::find_root(off_t offset, file_io* f)
+off_t file_bstore::find_root(const std::string& name, off_t offset, file_io* f)
 {
 	off_t best_root = 0;
 	char prefix = 0;
 	f->seek(0);
 	std::vector<char> record;
-	size_t file_pos = f->get_offset();
 	while(read_record(f, prefix, record))
 	{
-		if (prefix == 'R')
-			best_root = offset + file_pos;
-		file_pos = f->get_offset();
+		if (prefix == 'R' 
+			&& name.size() == record.size() 
+			&& memcmp(name.data(), &record[0], name.size()) == 0)
+		{
+			// Presumes that root data follows
+			// TODO: If crash occurs exactly at record boundry, this will fail
+			best_root = offset + f->get_offset();
+		}
 	}
 	return best_root;
 }
 
-off_t file_bstore::find_root()
+off_t file_bstore::find_root(const std::string& name)
 {
 	off_t best_root = 0;
 	slabs_t::reverse_iterator it = m_slabs.rbegin();
 	while(it != m_slabs.rend())
 	{
-		best_root = find_root(it->first, it->second.io);
+		best_root = find_root(name, it->first, it->second.io);
 		if (best_root != 0)
 			break;
 		it++;

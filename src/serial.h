@@ -29,19 +29,10 @@ void deserialize(readable& src, off_t& x);
 void serialize(writable& dest, size_t x);
 void deserialize(readable& src, size_t& x);
 
-inline void serialize(writable& dest, const std::vector<char>& v)
-{
-	serialize(dest, v.size());
-	dest.write(v.data(), v.size());
-};
-
-inline void deserialize(readable& src, std::vector<char>& v)
-{
-	size_t s;
-	deserialize(src, s);
-	v.resize(s);
-	src.read(v.data(), s);
-}
+void serialize(writable& dest, const std::vector<char>& v);
+void deserialize(readable& src, std::vector<char>& v);
+void serialize(writable& dest, const std::string& str);
+void deserialize(readable& src, std::string& str);
 
 #endif 
 

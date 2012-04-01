@@ -196,7 +196,7 @@ public:
 		return mock_snapshot(m_btree.get_snapshot(), m_mtree);
 	}
 
-	void sync(const std::string& name = "root")
+	void sync(const std::string& name)
 	{
 		m_btree.sync(name);
 	}

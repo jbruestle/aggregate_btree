@@ -61,3 +61,31 @@ void deserialize(readable& src, off_t& x) { read_variable(src, x); }
 void serialize(writable& dest, size_t x) { write_variable(dest, x); }
 void deserialize(readable& src, size_t& x) { read_variable(src, x); }
 
+void serialize(writable& dest, const std::vector<char>& v)
+{
+	serialize(dest, v.size());
+	dest.write(v.data(), v.size());
+};
+
+void deserialize(readable& src, std::vector<char>& v)
+{
+	size_t s;
+	deserialize(src, s);
+	v.resize(s);
+	src.read(v.data(), s);
+}
+
+void serialize(writable& dest, const std::string& str)
+{
+	serialize(dest, str.size());
+	dest.write(str.data(), str.size());
+};
+
+void deserialize(readable& src, std::string& str)
+{
+	size_t s;
+	deserialize(src, s);
+	str.resize(s);
+	src.read(&str[0], s);
+}
+

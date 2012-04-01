@@ -169,15 +169,11 @@ public:
 
 	void get_root(const std::string& name, ptr_t& root, size_t& height)
 	{
-		off_t root_off = m_store.get_root(name);
-		if (root_off != 0)
-		{
-			off_t root_node;
-			off_t root_oldest;
-			read_root(root_off, root_node, root_oldest, height);
-			if (root_node != 0)
-				root = lookup(root_node, root_oldest);
-		}
+		off_t root_node;
+		off_t root_oldest;
+		read_root(name, root_node, root_oldest, height);
+		if (root_node != 0)
+			root = lookup(root_node, root_oldest);
 	}
 	
 	void sync(const std::string& name, const ptr_t& until, size_t height)
@@ -289,7 +285,7 @@ private:
                 serialize(io, off);
                 serialize(io, oldest); 
                 serialize(io, height); 
-                off_t r = m_store.write_root(name, buf);
+                m_store.write_root(name, buf);
         }
 
 	void read_node(off_t loc, node_t& bnode) 
@@ -300,10 +296,10 @@ private:
 		bnode.deserialize(io, *this);
 	}
 
-	void read_root(off_t loc, off_t& off, off_t& oldest, size_t& height)
+	void read_root(const std::string& name, off_t& off, off_t& oldest, size_t& height)
 	{
 		std::vector<char> buf;
-		m_store.read_root(loc, buf);
+		m_store.read_root(name, buf);
 		if (buf.size() == 0)
 		{
 			off = 0;

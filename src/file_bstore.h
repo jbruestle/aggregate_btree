@@ -49,10 +49,9 @@ public:
 
 	// Required API to bcache
 	off_t write_node(const std::vector<char>& record);
-	off_t write_root(const std::string& name, const std::vector<char>& record);
+	void write_root(const std::string& name, const std::vector<char>& record);
 	void read_node(off_t which, std::vector<char>& record);
-	void read_root(off_t which, std::vector<char>& record);
-	off_t get_root(const std::string& name) { lock_t lock(m_mutex); return m_root; }
+	void read_root(const std::string& name, std::vector<char>& record);
 	void clear_before(off_t lowest);
 
 protected:
@@ -60,8 +59,8 @@ protected:
 	void add_file(const std::string& name); // Add a new i/o file
 
 	// Finds roots during reload
-	off_t find_root(off_t offset, file_io* f);
-	off_t find_root();
+	off_t find_root(const std::string& name, off_t offset, file_io* f);
+	off_t find_root(const std::string& name);
 
 	off_t write_record(char prefix, const std::vector<char>& record);  
 	bool read_record(file_io* f, char& prefix, std::vector<char>& record);  
@@ -69,7 +68,6 @@ protected:
 	void safe_read_record(off_t offset, char req_prefix, std::vector<char>& record);
 
 	off_t m_size;  // The current 'logical size'
-	off_t m_root;  // The current root offset
 	unsigned int m_next_slab;  // The next slab number to use
 	std::string m_dir;  // The directory the slabs live in
 	file_io* m_cur_slab;  // The current slab
