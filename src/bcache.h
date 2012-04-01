@@ -45,6 +45,13 @@ public:
 		, m_context(context)
 	{}
 
+	~bcache()
+	{
+		lock_t lock(m_mutex);
+		while(m_lru.size() > 0)
+			reduce_lru();
+	}
+
 	void inc(proxy_t& proxy)
 	{
 		lock_t lock(m_mutex);
@@ -201,7 +208,7 @@ public:
 			write_root(name, off, oldest, height);
 			m_mutex.lock();
 			// Remove excess cached nodes
-			while(m_lru.size() > 0)
+			while(m_lru.size() > m_max_lru_size)
 				reduce_lru();
 			// Find the lowest location
 			ll = lowest_loc();

@@ -36,22 +36,19 @@ struct int_int_policy
 #include "btree.h"
 #include <map>
 
-const size_t k_op_count = 20000;
+const size_t k_op_count = 10000;
 const size_t k_key_range = 1000;
 const size_t k_value_range = 100;
 const size_t k_num_snapshots = 5;
 const bool noisy = false;
 
 typedef btree<int_int_policy> btree_t;
-typedef btree_t::snapshot_t bsnapshot_t;
-typedef bsnapshot_t::const_iterator biterator_t;
+typedef btree_t::const_iterator biterator_t;
 
 typedef std::map<int, int> mtree_t;
-typedef std::map<int, int> msnapshot_t;
-typedef msnapshot_t::const_iterator miterator_t;
+typedef mtree_t::const_iterator miterator_t;
 
-typedef bsnapshot_t::value_type value_type;
-class mock_snapshot;
+typedef mtree_t::value_type value_type;
 class mock_tree;
 
 class mock_iterator : public boost::iterator_facade<
@@ -60,7 +57,7 @@ class mock_iterator : public boost::iterator_facade<
 	boost::bidirectional_traversal_tag> 
 {
 	friend class boost::iterator_core_access;
-	friend class mock_snapshot;
+	friend class mock_tree;
 public:
 	mock_iterator() {}
 	mock_iterator(biterator_t biter, miterator_t miter)
@@ -90,78 +87,34 @@ private:
 			printf("FAILED in deref %d:%d vs %d:%d\n", m_biter->first,m_biter->second,m_miter->first,m_miter->second);
 			exit(1);
 		}
-		return *m_biter;
+		const value_type& r = *m_biter;
+		return r;
 	}
 	
 	biterator_t m_biter;
 	miterator_t m_miter;
 };
 
-class mock_snapshot 
-{
-public:
-	friend class mock_tree;
-	typedef mock_iterator const_iterator;
-	mock_snapshot(const bsnapshot_t& bsnap, const msnapshot_t& msnap)
-		: m_bsnap(bsnap)
-		, m_msnap(msnap)
-	{}
-	
-	const_iterator begin() const { return mock_iterator(m_bsnap.begin(), m_msnap.begin()); }
-	const_iterator end() const { return mock_iterator(m_bsnap.end(), m_msnap.end()); }
-	const_iterator find(int k) const { return mock_iterator(m_bsnap.find(k), m_msnap.find(k)); }
-	const_iterator lower_bound(int k) const { return mock_iterator(m_bsnap.lower_bound(k), m_msnap.lower_bound(k)); }
-	const_iterator upper_bound(int k) const { return mock_iterator(m_bsnap.upper_bound(k), m_msnap.upper_bound(k)); }
-
-	template<class Functor>
-	void accumulate_until(const_iterator& cur, int& total, const const_iterator& end, const Functor& threshold)
-	{
-		miterator_t mit = cur.m_miter;
-		int val = total;
-		while(mit != end.m_miter)
-		{
-			if (threshold(val + mit->second))
-				break;
-			val += mit->second;
-			mit++;
-		}
-		int val2 = total;
-		biterator_t bit = cur.m_biter;
-		m_bsnap.accumulate_until(bit, val2, end.m_biter, threshold);
-		if (val != val2)
-		{
-			printf("Values differ, %d vs %d\n", val, val2);
-			exit(1);
-		}
-		if ((mit == m_msnap.end()) != (bit == m_bsnap.end()))
-		{
-			printf("AU: Not both or neither end\n");
-			exit(1);
-		}
-		if (mit != m_msnap.end())
-		{
-			if (mit->first != bit->first || mit->second != bit->second)
-			{
-				printf("Mismatch on iterator final values, k1 = %d, k2 = %d\n", mit->first, bit->first);
-				exit(1);
-			}
-		}
-		total = val;
-		cur = mock_iterator(bit, mit);
-	}
-			
-private:
-	bsnapshot_t m_bsnap;
-	msnapshot_t m_msnap;
-};
-
 class mock_tree
 {
 public:
-	mock_tree(bcache<int_int_policy>& cache, const std::string& name, mtree_t& mt) 
+	mock_tree(bcache<int_int_policy>& cache, const std::string& name, const mtree_t& mt) 
 		: m_btree(cache, name)
 		, m_mtree(mt)
 	{}
+
+	mock_tree(const mock_tree& rhs)
+		: m_btree(rhs.m_btree)
+		, m_mtree(rhs.m_mtree)
+	{}
+
+	void operator=(const mock_tree& rhs)
+	{
+		m_btree = rhs.m_btree;
+		m_mtree = rhs.m_mtree;
+	}
+	
+	const mtree_t& get_mtree() { return m_mtree; }
 
 	template<class Updater>
 	bool update(int k, const Updater& updater)
@@ -190,11 +143,8 @@ public:
 		return br;
 	}
 
+	void clear() { m_btree.clear(); m_mtree.clear(); }
 	size_t size() const { return m_mtree.size(); }
-	mock_snapshot get_snapshot() const
-	{
-		return mock_snapshot(m_btree.get_snapshot(), m_mtree);
-	}
 
 	void sync(const std::string& name)
 	{
@@ -218,9 +168,51 @@ public:
 		return m_btree.validate();
 	}
 
+	mock_iterator begin() const { return mock_iterator(m_btree.begin(), m_mtree.begin()); }
+	mock_iterator end() const { return mock_iterator(m_btree.end(), m_mtree.end()); }
+	mock_iterator find(int k) const { return mock_iterator(m_btree.find(k), m_mtree.find(k)); }
+	mock_iterator lower_bound(int k) const { return mock_iterator(m_btree.lower_bound(k), m_mtree.lower_bound(k)); }
+	mock_iterator upper_bound(int k) const { return mock_iterator(m_btree.upper_bound(k), m_mtree.upper_bound(k)); }
+
+	template<class Functor>
+	void accumulate_until(mock_iterator& cur, int& total, const mock_iterator& end, const Functor& threshold)
+	{
+		miterator_t mit = cur.m_miter;
+		int val = total;
+		while(mit != end.m_miter)
+		{
+			if (threshold(val + mit->second))
+				break;
+			val += mit->second;
+			mit++;
+		}
+		int val2 = total;
+		biterator_t bit = cur.m_biter;
+		m_btree.accumulate_until(bit, val2, end.m_biter, threshold);
+		if (val != val2)
+		{
+			printf("Values differ, %d vs %d\n", val, val2);
+			exit(1);
+		}
+		if ((mit == m_mtree.end()) != (bit == m_btree.end()))
+		{
+			printf("AU: Not both or neither end\n");
+			exit(1);
+		}
+		if (mit != m_mtree.end())
+		{
+			if (mit->first != bit->first || mit->second != bit->second)
+			{
+				printf("Mismatch on iterator final values, k1 = %d, k2 = %d\n", mit->first, bit->first);
+				exit(1);
+			}
+		}
+		total = val;
+		cur = mock_iterator(bit, mit);
+	}
 private:
 	btree_t m_btree;
-	mtree_t& m_mtree;
+	mtree_t m_mtree;
 };
 
 class always_update
@@ -265,11 +257,10 @@ int main()
 	file_bstore *fbs = new file_bstore();
 	fbs->open("/tmp/lame_tree", true);
 	bcache<int_int_policy>* cache = new bcache<int_int_policy>(*fbs, 10, 20, NULL);
-	mtree_t mtree;
-	mock_tree* t = new mock_tree(*cache, "root", mtree);
-	std::vector<mock_snapshot> snaps;
+	mock_tree t(*cache, "root", mtree_t());
+	std::vector<mock_tree> snaps;
 	for(size_t i = 0; i < k_num_snapshots; i++)
-		snaps.push_back(t->get_snapshot());
+		snaps.push_back(t);
 
 	for(size_t i = 0; i < k_op_count; i++)
 	{
@@ -281,17 +272,18 @@ int main()
 				snaps.clear();
 				printf("Node count = %d\n", (int) g_node_count);
 				printf("Closing trr\n");
-				t->sync("root");
-				delete t;
+				t.sync("root");
+				mtree_t save = t.get_mtree();
+				t.clear();
 				delete cache;
 				delete fbs;
 				printf("Node count = %d\n", (int) g_node_count);
 				fbs = new file_bstore();
 				fbs->open("/tmp/lame_tree", false);
 				cache = new bcache<int_int_policy>(*fbs, 10, 20, NULL);
-				t = new mock_tree(*cache, "root", mtree);
+				t = mock_tree(*cache, "root", save);
 				for(size_t i = 0; i < k_num_snapshots; i++)
-					snaps.push_back(t->get_snapshot());
+					snaps.push_back(t);
 			}
 		}
 		switch(random() % 11)
@@ -302,20 +294,19 @@ int main()
 			int k = random() % k_key_range;
 			int v = random() % k_value_range;
 			if (noisy) printf("Doing insert of %d\n", k);
-			t->update(k, always_update(v));
+			t.update(k, always_update(v));
 		}
 		break;
 		case 2:
 		{
 			int k = random() % k_key_range;
 			if (noisy) printf("Finding near %d\n", k);
-			mock_snapshot s = t->get_snapshot();
-			mock_iterator it = s.lower_bound(k);
-			if (it != s.end())
+			mock_iterator it = t.lower_bound(k);
+			if (it != t.end())
 			{		
 				// TODO: Find an actual erasable element
 				if (noisy) printf("Near %d, Erasing %d\n", k, it->first);
-				t->update(it->first, always_erase());
+				t.update(it->first, always_erase());
 			}
 		}
 		break;
@@ -326,7 +317,7 @@ int main()
 			if (k2 < k1)
 				std::swap(k1, k2);
 			if (noisy) printf("Checking range (%d-%d)\n", k1, k2);
-			mock_snapshot& s = snaps[random() % k_num_snapshots];
+			mock_tree& s = snaps[random() % k_num_snapshots];
 			mock_iterator it = s.lower_bound(k1);
 			mock_iterator itEnd = s.lower_bound(k2);
 			if (it == s.end())
@@ -341,7 +332,7 @@ int main()
 			int total;
 			if (noisy) printf("looping forward\n");
 			mock_iterator it;
-			mock_snapshot& s = snaps[random() % k_num_snapshots];
+			mock_tree& s = snaps[random() % k_num_snapshots];
 			for(it = s.begin(); it != s.end(); ++it)
 			{
 				total += it->second;
@@ -354,7 +345,7 @@ int main()
 		{
 			int total;
 			if (noisy) printf("looping backword\n");
-			mock_snapshot& s = snaps[random() % k_num_snapshots];
+			mock_tree& s = snaps[random() % k_num_snapshots];
 			if (s.begin() == s.end())
 				break;
 			mock_iterator it = s.end(); --it;
@@ -372,7 +363,7 @@ int main()
 		{
 			int k = random() % k_key_range;
 			if (noisy) printf("testing lower_bound at %d\n", k);		
-			mock_snapshot& s = snaps[random() % k_num_snapshots];
+			mock_tree& s = snaps[random() % k_num_snapshots];
 			mock_iterator it = s.lower_bound(k);
 			if (it != s.end())
 				k = it->first;
@@ -382,7 +373,7 @@ int main()
 		{
 			int k = random() % k_key_range;
 			if (noisy) printf("testing upper_bound at %d\n", k);
-			mock_snapshot& s = snaps[random() % k_num_snapshots];
+			mock_tree& s = snaps[random() % k_num_snapshots];
 			mock_iterator it = s.upper_bound(k);
 			if (it != s.end())
 				k = it->first;
@@ -392,7 +383,7 @@ int main()
 		{
 			int k = random() % k_key_range;
 			if (noisy) printf("testing find at %d\n", k);		
-			mock_snapshot& s = snaps[random() % k_num_snapshots];
+			mock_tree& s = snaps[random() % k_num_snapshots];
 			mock_iterator it = s.find(k);
 			if (it != s.end())
 				k = it->first;
@@ -405,7 +396,7 @@ int main()
 			while (val_tot < 100000000 && random() % 3 == 1)
 				val_tot *= 10;
 			if (noisy) printf("Checking from %d until tot >= %d\n", k1, val_tot);
-			mock_snapshot& s = snaps[random() % k_num_snapshots];
+			mock_tree& s = snaps[random() % k_num_snapshots];
 			mock_iterator it = s.lower_bound(k1);
 			if (it == s.end())
 				break;
@@ -421,24 +412,24 @@ int main()
 		case 10:
 		{
 			if (noisy) printf("Copying snapshot\n");
-			snaps[random() % k_num_snapshots] = t->get_snapshot();	
+			snaps[random() % k_num_snapshots] = t;	
 		}
 		break;
 		}
-		if (noisy) t->print();
-		if (!t->validate())
+		if (noisy) t.print();
+		if (!t.validate())
 			exit(1);
 	}
 	printf("Node count = %d\n", (int) g_node_count);
 	snaps.clear();
-	while(t->size() > 0)
+	while(t.size() > 0)
 	{
-		int val = t->get_snapshot().begin()->first;
+		int val = t.begin()->first;
 		if (noisy) printf("Erasing %d\n", val);
-		t->update(val, always_erase());
+		t.update(val, always_erase());
 	}
-	t->sync("root");
-	delete t;
+	t.sync("root");
+	t.clear();
 	delete cache;
 	delete fbs;
 	printf("Node count = %d\n", (int) g_node_count);

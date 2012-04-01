@@ -23,7 +23,6 @@
 #include "bnode_proxy.h"
 #include "bcache.h"
 #include "biter.h"
-#include "bsnapshot.h"
 #include <boost/iterator/iterator_facade.hpp>
 
 template<class Policy>
@@ -37,19 +36,39 @@ class btree
 	typedef typename Policy::store_t store_t;
 	typedef typename Policy::context_t context_t;
 public:
-	typedef bsnapshot<Policy> snapshot_t;
+	btree() : m_cache(NULL) {}
+
+	btree(cache_t& cache)
+		: m_cache(&cache)
+		, m_height(0)
+	{}
 
 	btree(cache_t& cache, const std::string& name)
-		: m_cache(cache)
+		: m_cache(&cache)
 		, m_height(0)
 	{
-		m_cache.get_root(name, m_root, m_height);
+		m_cache->get_root(name, m_root, m_height);
+	}
+
+	btree(const btree& rhs)
+		: m_cache(rhs.m_cache)
+		, m_root(rhs.m_root)
+		, m_height(rhs.m_height)
+	{}
+
+	btree& operator=(const btree& rhs)
+	{
+		m_cache = rhs.m_cache;
+		m_root = rhs.m_root;
+		m_height = rhs.m_height;
+		return *this;
 	}
 
 public:
 	template<class Updater>
 	bool update(const key_t& k, const Updater& updater)
 	{
+		assert(m_cache);
 		// If root is null, see if an insert works
 		if (m_root == ptr_t())
 		{
@@ -61,7 +80,7 @@ public:
 			if (!changed || !exists)
 				return false;
 			// Otherwise, create the initial node
-			m_root = m_cache.new_node(new node_t(k, v));
+			m_root = m_cache->new_node(new node_t(k, v));
 			m_height++;
 			return true;
 		}
@@ -70,7 +89,7 @@ public:
 		node_t* w_root = m_root->copy();
 		node_t* overflow = NULL;
 		ptr_t peer;
-		typename node_t::update_result r = w_root->update(m_cache, k, peer, overflow, updater);
+		typename node_t::update_result r = w_root->update(*m_cache, k, peer, overflow, updater);
 
 		if (r == node_t::ur_nop)
 		{
@@ -81,15 +100,15 @@ public:
 		if (r == node_t::ur_modify)
 		{
 			// Easy case, just update main node
-			m_root = m_cache.new_node(w_root);
+			m_root = m_cache->new_node(w_root);
 		}
 		else if (r == node_t::ur_split)
 		{
 			// Root just split, make new root
-			m_root = m_cache.new_node(new node_t(
+			m_root = m_cache->new_node(new node_t(
 				m_height,
-				m_cache.new_node(w_root), 
-				m_cache.new_node(overflow)
+				m_cache->new_node(w_root), 
+				m_cache->new_node(overflow)
 			));
 			m_height++;  
 		} 
@@ -112,6 +131,13 @@ public:
 		return true;	
 	}
 
+	void clear()
+	{
+		m_root = ptr_t();
+		m_height = 0;
+		m_cache = NULL;
+	}
+
 	typedef std::pair<key_t, value_t> value_type;
 	class const_iterator : public boost::iterator_facade<
 		const_iterator,
@@ -122,41 +148,65 @@ public:
 		friend class btree;
 	public:
 		const_iterator() {}
-		const_iterator(const ptr_t& root, size_t height) 
-			: m_state(root, height) 
-			, m_self(*this)
+		const_iterator(const btree& self) 
+			: m_state(self.m_root, self.m_height) 
 		{}
 	private:
-		mutable biter<Policy> m_state;
-		btree& m_self;
-		void increment() { maybe_update(); m_state.increment(); }
-		void decrement() { maybe_update(); m_state.decrement(); }
-		bool equal(const_iterator const& other) const 
-		{ 
-			other.maybe_update();
-			maybe_update();
-			return m_state == other.m_state; 
-		}
-		const value_type& dereference() const { maybe_update(); return m_state.get_pair(); }
+		//btree& m_self;
+		biter<Policy> m_state;
+		void increment() { m_state.increment(); }
+		void decrement() { m_state.decrement(); }
+		bool equal(const_iterator const& other) const { return m_state == other.m_state; }
+		const value_type& dereference() const { return m_state.get_pair(); }
+		/*
 		void maybe_update() const
 		{
 			if (m_self.m_root != m_state.get_root() || m_self.m_height != m_state.get_height())
 			{
 				key_t k = m_state.get_key();
-				m_state = biter<Policy>(m_self.root, m_self.height);
+				m_state = biter<Policy>(m_self.m_root, m_self.m_height);
 				m_state.set_find(m_state.get_key());
 			}
 		}
+		*/
 	};
 
-	snapshot_t get_snapshot() const 
+	friend class const_iterator;
+
+	const_iterator begin() const { 
+		const_iterator r(*this); r.m_state.set_begin(); return r; 
+	}
+	const_iterator end() const { 
+		const_iterator r(*this); return r; 
+	}
+	const_iterator find(const key_t& k) const { 
+		const_iterator r(*this); r.m_state.set_find(k); return r; 
+	}
+	const_iterator lower_bound(const key_t& k) const { 
+		const_iterator r(*this); r.m_state.set_lower_bound(k); return r; 
+	}
+	const_iterator upper_bound(const key_t& k) const { 
+		const_iterator r(*this); r.m_state.set_upper_bound(k); return r; 
+	}
+
+	// Logically, accumulate_until moves 'cur' forward, adding cur->second to total until either:
+	// 1) cur == end
+	// 2) adding cur->second to total would make threshold(total) true
+	// That is, we stop right before threshold becomes true
+	// In reality, the whole thing is done in log(n) time through fancy tricks
+	template<class Functor>
+	void accumulate_until(const_iterator& cur, value_t& total, const const_iterator& end, const Functor& threshold)
+	{
+		cur.m_state.accumulate_until(threshold, total, end.m_state);
+	}
+
+	/*snapshot_t get_snapshot() const 
 	{ 
 		return snapshot_t(m_root, m_height); 
 	}
+	*/
 
-	void sync(const std::string& name) { m_cache.sync(name, m_root, m_height); }
-
-	cache_t& get_cache() { return m_cache; }
+	void sync(const std::string& name) { assert(m_cache); m_cache->sync(name, m_root, m_height); }
 
 #ifdef __BTREE_DEBUG
 	void print() const
@@ -197,9 +247,9 @@ private:
 
 		// Otherwise, give it a go
 		node_t* w_root = m_root->copy();
-		bool r = w_root->load_below(m_cache, off);
+		bool r = w_root->load_below(*m_cache, off);
 		if (r)
-			m_root = m_cache.new_node(w_root);
+			m_root = m_cache->new_node(w_root);
 		else
 			delete w_root;
 
@@ -211,7 +261,7 @@ private:
 		load_below(lowest_loc());
 	}
 
-	mutable bcache<Policy>& m_cache;
+	bcache<Policy>* m_cache;
 	ptr_t m_root;
 	size_t m_height;
 };

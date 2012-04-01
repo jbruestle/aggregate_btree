@@ -34,9 +34,6 @@ template<class Policy>
 class bcache;
 
 template<class Policy>
-class bsnapshot;
-
-template<class Policy>
 class biter;
 
 template<class Policy>
