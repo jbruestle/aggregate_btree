@@ -30,7 +30,7 @@ class bcache
 {
 	typedef bnode<Policy> node_t;
 	typedef bnode_proxy<Policy> proxy_t;
-	typedef bnode_ptr<Policy> ptr_t;
+	typedef bnode_cache_ptr<Policy> ptr_t;
 	typedef boost::recursive_mutex mutex_t;
 	typedef boost::unique_lock<mutex_t> lock_t;
 	typedef typename Policy::context_t context_t;
@@ -151,6 +151,27 @@ public:
 		while(m_unwritten.size() > m_max_unwritten_size)
 			write_front(lock);
 		return r;
+	}
+
+	off_t get_oldest(const ptr_t& ptr) { return ptr.get_oldest(); }
+
+	bool load_below(ptr_t& root, off_t off)
+	{
+		if (root == ptr_t())
+                        return false;
+
+                if (off == std::numeric_limits<off_t>::max())
+                        return false;
+
+                // Otherwise, give it a go
+                node_t* w_root = root->copy();
+                bool r = w_root->load_below(*this, off);
+                if (r)
+                        root = new_node(w_root);
+                else
+                        delete w_root;
+
+                return r;
 	}
 
 	ptr_t lookup(off_t off, off_t oldest)
@@ -333,6 +354,17 @@ private:
 	typedef std::pair<off_t, proxy_t*> old_off_t;
 	std::set<old_off_t> m_oldest;
 	context_t m_context;
+};
+
+template<class Policy>
+class bcache_nop
+{
+public:
+	typedef bnode<Policy> node_t;
+	typedef typename apply_policy<Policy>::ptr_t ptr_t;
+	ptr_t new_node(node_t* node) { return ptr_t(node); }
+	off_t get_oldest(const ptr_t& ptr) { std::numeric_limits<off_t>::max(); }
+	bool load_below(ptr_t& ptr, off_t off) { return true; }
 };
 
 #endif

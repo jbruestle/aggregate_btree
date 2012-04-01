@@ -24,7 +24,7 @@
 #include "bdecl.h"
 
 template<class Policy>
-class bnode_ptr
+class bnode_cache_ptr
 {
 	typedef bnode<Policy> node_t;
 	typedef bnode_proxy<Policy> proxy_t;
@@ -32,10 +32,10 @@ class bnode_ptr
 	typedef typename Policy::key_t key_t;
 	typedef typename Policy::value_t value_t;
 public:
-	bnode_ptr() : m_proxy(NULL) {}
-	bnode_ptr(proxy_t* proxy) : m_proxy(proxy) {}
-	bnode_ptr(const bnode_ptr& rhs) : m_proxy(rhs.m_proxy) { inc(); }
-	bnode_ptr& operator=(const bnode_ptr& rhs) 
+	bnode_cache_ptr() : m_proxy(NULL) {}
+	bnode_cache_ptr(proxy_t* proxy) : m_proxy(proxy) {}
+	bnode_cache_ptr(const bnode_cache_ptr& rhs) : m_proxy(rhs.m_proxy) { inc(); }
+	bnode_cache_ptr& operator=(const bnode_cache_ptr& rhs) 
 	{ 
 		if (m_proxy != rhs.m_proxy)
 		{
@@ -45,9 +45,9 @@ public:
 		}
 		return *this;
 	}
-	~bnode_ptr() { dec(); }
-	bool operator==(const bnode_ptr& rhs) const { return m_proxy == rhs.m_proxy; }
-	bool operator!=(const bnode_ptr& rhs) const { return m_proxy != rhs.m_proxy; }
+	~bnode_cache_ptr() { dec(); }
+	bool operator==(const bnode_cache_ptr& rhs) const { return m_proxy == rhs.m_proxy; }
+	bool operator!=(const bnode_cache_ptr& rhs) const { return m_proxy != rhs.m_proxy; }
 	void clear() { dec(); m_proxy = NULL; }
 
 	// HACK, used only for sync, fix this

@@ -29,12 +29,10 @@ template<class Policy>
 class btree
 {
 	typedef bnode<Policy> node_t;
-	typedef bnode_ptr<Policy> ptr_t;
-	typedef bcache<Policy> cache_t;
+	typedef typename apply_policy<Policy>::ptr_t ptr_t;
+	typedef typename apply_policy<Policy>::cache_t cache_t;
 	typedef typename Policy::key_t key_t;
 	typedef typename Policy::value_t value_t;
-	typedef typename Policy::store_t store_t;
-	typedef typename Policy::context_t context_t;
 public:
 	btree() : m_cache(NULL) {}
 
@@ -234,34 +232,15 @@ private:
 	{
 		if (m_root == ptr_t())
 			return std::numeric_limits<off_t>::max();
-		return m_root.get_oldest();
-	}
-
-	bool load_below(off_t off) 
-	{
-		if (m_root == ptr_t())
-			return false;
-
-		if (off == std::numeric_limits<off_t>::max())
-			return false;
-
-		// Otherwise, give it a go
-		node_t* w_root = m_root->copy();
-		bool r = w_root->load_below(*m_cache, off);
-		if (r)
-			m_root = m_cache->new_node(w_root);
-		else
-			delete w_root;
-
-		return r;
+		return m_cache->get_oldest(m_root);
 	}
 
 	void clean_one()
 	{
-		load_below(lowest_loc());
+		m_cache->load_below(m_root, lowest_loc());
 	}
 
-	bcache<Policy>* m_cache;
+	cache_t* m_cache;
 	ptr_t m_root;
 	size_t m_height;
 };

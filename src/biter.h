@@ -26,7 +26,7 @@ class biter
 public:
 	typedef typename Policy::key_t key_t;
 	typedef typename Policy::value_t value_t;
-	typedef bnode_ptr<Policy> ptr_t;
+	typedef typename apply_policy<Policy>::ptr_t ptr_t;
 
 	// Construct a totally empty iterator
 	biter()

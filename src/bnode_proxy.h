@@ -54,7 +54,7 @@ template<class Policy>
 class bnode_proxy : public boost::intrusive::list_base_hook<>
 {
 	typedef bnode<Policy> node_t;
-	typedef bnode_ptr<Policy> ptr_t;
+	typedef bnode_cache_ptr<Policy> ptr_t;
 	typedef bcache<Policy> cache_t;
 	typedef boost::condition_variable_any condition_t;
 	friend class pinned_proxy<Policy>;

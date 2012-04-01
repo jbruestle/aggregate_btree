@@ -36,8 +36,8 @@ private:
 	const static size_t max_size = Policy::max_size;
 	typedef typename Policy::key_t key_t;
 	typedef typename Policy::value_t value_t;
-	typedef bnode_ptr<Policy> ptr_t;
-	typedef bcache<Policy> cache_t;
+	typedef typename apply_policy<Policy>::ptr_t ptr_t;
+	typedef typename apply_policy<Policy>::cache_t cache_t;
 public:
 	// Create a new 'tree' with one element
 	bnode(const key_t& k, const value_t& v)
@@ -394,7 +394,7 @@ private:
 		{
 			m_keys[i] = key_t();
 			m_values[i] = value_t();
-			m_ptrs[i].clear();
+			m_ptrs[i] = ptr_t();
 		}
 			
 		m_size -= diff;
@@ -450,7 +450,7 @@ private:
 		{
 			m_keys[i] = key_t();
 			m_values[i] = value_t();
-			m_ptrs[i].clear();
+			m_ptrs[i] = ptr_t();
 		}
 	
 		m_size = keep_size;

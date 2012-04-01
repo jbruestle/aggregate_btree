@@ -28,6 +28,7 @@ struct int_int_policy
 	static bool less_then(const int& a, const int& b) { return a < b; }
 	static void serialize(writable& out, const int& a) { ::serialize(out, a); }
 	static void deserialize(readable& in, int& a) { ::deserialize(in, a); }
+	static const bool use_cache = true;
 	static const size_t min_size = 10;
 	static const size_t max_size = 20;
 };
@@ -249,7 +250,7 @@ private:
 
 extern size_t g_node_count; 
 
-int main()
+int test_disk()
 {
 	printf("Testing btree\n");
 	printf("Node count = %d\n", (int) g_node_count);
@@ -434,4 +435,49 @@ int main()
 	delete fbs;
 	printf("Node count = %d\n", (int) g_node_count);
 	assert(true);
+}
+
+struct int_int_inmem
+{
+	typedef int key_t;
+	typedef int value_t;
+	static void aggregate(int& out, const int& in) { out += in; }
+	static bool less_then(const int& a, const int& b) { return a < b; }
+	static const bool use_cache = false;
+	static const size_t min_size = 2;
+	static const size_t max_size = 4;
+};
+
+void test_in_memory()
+{
+	typedef btree<int_int_inmem> bt_t;
+	typedef bt_t::const_iterator it_t;
+	bcache_nop<int_int_inmem> no_cache;
+	bt_t tree(no_cache);
+	for(size_t i = 0; i < 100; i++)
+	{
+		int k = random() % 1000;
+		int v = random() % 100;
+		tree.update(k, always_update(v));
+	}
+	it_t it = tree.begin();
+	it_t it_end = tree.end();
+	int total = 0;
+	tree.accumulate_until(it, total, it_end, forever_functor());
+	printf("Total = %d\n", total);
+	it = tree.begin();
+	int my_total = 0;
+	for(; it != it_end; ++it)
+	{
+		//printf("(%d, %d)\n", it->first, it->second);
+		my_total += it->second;
+	}
+	printf("Computed total = %d\n", my_total);
+	assert(my_total = total);
+}
+
+int main()
+{
+	test_in_memory();
+	test_disk();
 }

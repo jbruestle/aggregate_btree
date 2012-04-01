@@ -18,6 +18,8 @@
 #ifndef __bdecl_h__
 #define __bdecl_h__
 
+#include <boost/shared_ptr.hpp>
+
 template<class Policy>
 class bnode;
 
@@ -28,10 +30,13 @@ template<class Policy>
 class pinned_proxy;
 
 template<class Policy>
-class bnode_ptr;
+class bnode_cache_ptr;
 
 template<class Policy>
 class bcache;
+
+template<class Policy>
+class bcache_nop;
 
 template<class Policy>
 class biter;
@@ -39,5 +44,26 @@ class biter;
 template<class Policy>
 class btree;
 
+template<class Policy, bool use_cache>
+struct apply_policy_impl
+{
+	typedef bcache<Policy> cache_t;
+	typedef bnode_cache_ptr<Policy> ptr_t;
+};
+
+template<class Policy>
+struct apply_policy_impl<Policy, false>
+{
+	typedef bcache_nop<Policy> cache_t;
+	typedef boost::shared_ptr<bnode<Policy> > ptr_t;
+}; 
+
+template<class Policy>
+struct apply_policy
+{
+	typedef typename apply_policy_impl<Policy, Policy::use_cache>::cache_t cache_t;
+	typedef typename apply_policy_impl<Policy, Policy::use_cache>::ptr_t ptr_t;
+};
+ 
 #endif
 
