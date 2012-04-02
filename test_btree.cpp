@@ -23,11 +23,10 @@ struct int_int_policy
 	typedef int key_t;
 	typedef int value_t;
 	typedef file_bstore store_t;
-	typedef void* context_t;
-	static void aggregate(int& out, const int& in) { out += in; }
-	static bool less_then(const int& a, const int& b) { return a < b; }
-	static void serialize(writable& out, const int& a) { ::serialize(out, a); }
-	static void deserialize(readable& in, int& a) { ::deserialize(in, a); }
+	bool less(const int& a, const int& b) const { return a < b; }
+	void aggregate(int& out, const int& in) const { out += in; }
+	void serialize(writable& out, const int& a) const { ::serialize(out, a); }
+	void deserialize(readable& in, int& a) const { ::deserialize(in, a); }
 	static const bool use_cache = true;
 	static const size_t min_size = 10;
 	static const size_t max_size = 20;
@@ -257,7 +256,7 @@ int test_disk()
 	system("rm -r /tmp/lame_tree");
 	file_bstore *fbs = new file_bstore();
 	fbs->open("/tmp/lame_tree", true);
-	bcache<int_int_policy>* cache = new bcache<int_int_policy>(*fbs, 10, 20, NULL);
+	bcache<int_int_policy>* cache = new bcache<int_int_policy>(*fbs, 10, 20);
 	mock_tree t(*cache, "root", mtree_t());
 	std::vector<mock_tree> snaps;
 	for(size_t i = 0; i < k_num_snapshots; i++)
@@ -281,7 +280,7 @@ int test_disk()
 				printf("Node count = %d\n", (int) g_node_count);
 				fbs = new file_bstore();
 				fbs->open("/tmp/lame_tree", false);
-				cache = new bcache<int_int_policy>(*fbs, 10, 20, NULL);
+				cache = new bcache<int_int_policy>(*fbs, 10, 20);
 				t = mock_tree(*cache, "root", save);
 				for(size_t i = 0; i < k_num_snapshots; i++)
 					snaps.push_back(t);
@@ -441,8 +440,8 @@ struct int_int_inmem
 {
 	typedef int key_t;
 	typedef int value_t;
+	static bool less(const int& a, const int& b) { return a < b; }
 	static void aggregate(int& out, const int& in) { out += in; }
-	static bool less_then(const int& a, const int& b) { return a < b; }
 	static const bool use_cache = false;
 	static const size_t min_size = 2;
 	static const size_t max_size = 4;

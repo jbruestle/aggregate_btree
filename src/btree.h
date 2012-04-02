@@ -78,7 +78,7 @@ public:
 			if (!changed || !exists)
 				return false;
 			// Otherwise, create the initial node
-			m_root = m_cache->new_node(new node_t(k, v));
+			m_root = m_cache->new_node(new node_t(m_cache->get_policy(), k, v));
 			m_height++;
 			return true;
 		}
@@ -104,6 +104,7 @@ public:
 		{
 			// Root just split, make new root
 			m_root = m_cache->new_node(new node_t(
+				m_cache->get_policy(),
 				m_height,
 				m_cache->new_node(w_root), 
 				m_cache->new_node(overflow)
@@ -150,23 +151,11 @@ public:
 			: m_state(self.m_root, self.m_height) 
 		{}
 	private:
-		//btree& m_self;
 		biter<Policy> m_state;
 		void increment() { m_state.increment(); }
 		void decrement() { m_state.decrement(); }
 		bool equal(const_iterator const& other) const { return m_state == other.m_state; }
 		const value_type& dereference() const { return m_state.get_pair(); }
-		/*
-		void maybe_update() const
-		{
-			if (m_self.m_root != m_state.get_root() || m_self.m_height != m_state.get_height())
-			{
-				key_t k = m_state.get_key();
-				m_state = biter<Policy>(m_self.m_root, m_self.m_height);
-				m_state.set_find(m_state.get_key());
-			}
-		}
-		*/
 	};
 
 	friend class const_iterator;
@@ -197,12 +186,6 @@ public:
 	{
 		cur.m_state.accumulate_until(threshold, total, end.m_state);
 	}
-
-	/*snapshot_t get_snapshot() const 
-	{ 
-		return snapshot_t(m_root, m_height); 
-	}
-	*/
 
 	void sync(const std::string& name) { assert(m_cache); m_cache->sync(name, m_root, m_height); }
 

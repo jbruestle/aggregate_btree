@@ -209,7 +209,7 @@ public:
 	{
 		if (m_height == 0)
 			return;
-		if (!Policy::less_then(m_nodes[0]->key(0), k))
+		if (!m_nodes[0]->get_policy().less(m_nodes[0]->key(0), k))
 		{
 			set_begin();
 			return;
@@ -228,7 +228,7 @@ public:
 	{
 		if (m_height == 0)
 			return;
-		if (Policy::less_then(k, m_nodes[0]->key(0)))
+		if (m_nodes[0]->get_policy().less(k, m_nodes[0]->key(0)))
 		{
 			set_begin();
 			return;

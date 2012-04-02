@@ -33,16 +33,15 @@ class bcache
 	typedef bnode_cache_ptr<Policy> ptr_t;
 	typedef boost::recursive_mutex mutex_t;
 	typedef boost::unique_lock<mutex_t> lock_t;
-	typedef typename Policy::context_t context_t;
 	typedef typename Policy::store_t store_t;
 
 public:
-	bcache(store_t& store, size_t max_unwritten_size, size_t max_lru_size, const context_t& context)
-		: m_store(store)
+	bcache(store_t& store, size_t max_unwritten_size, size_t max_lru_size, const Policy& policy = Policy())
+		: m_policy(policy)
+		, m_store(store)
 		, m_max_unwritten_size(max_unwritten_size)
 		, m_max_lru_size(max_lru_size)
 		, m_in_write(false)
-		, m_context(context)
 	{}
 
 	~bcache()
@@ -107,7 +106,7 @@ public:
 			proxy.m_state = proxy_t::loading; // Set state to loading
 			m_mutex.unlock(); // Lock count should be exactly 0 (pin in nonrecursive)
 			// Load node outside of lock
-			node_t* node = new node_t(0);
+			node_t* node = new node_t(m_policy, 0);
 			read_node(proxy.m_off, *node);
 			m_mutex.lock();  // Relock
 			proxy.m_ptr = node;
@@ -135,6 +134,8 @@ public:
 				reduce_lru();  // Reduce if needed
 		}
 	}
+
+	Policy& get_policy() { return m_policy; }
 
 	ptr_t new_node(node_t* node)
 	{
@@ -238,7 +239,6 @@ public:
 		m_store.clear_before(ll);
 	}
 
-	const context_t& get_context() { return m_context; }
 private:
 	off_t lowest_loc()
 	{
@@ -340,7 +340,8 @@ private:
 		deserialize(io, oldest);
 		deserialize(io, height);
 	}
-		
+
+	Policy m_policy;		
 	store_t& m_store;
 	mutex_t m_mutex;	
 	size_t m_max_unwritten_size;
@@ -353,18 +354,21 @@ private:
 	by_off_t m_by_off;
 	typedef std::pair<off_t, proxy_t*> old_off_t;
 	std::set<old_off_t> m_oldest;
-	context_t m_context;
 };
 
 template<class Policy>
 class bcache_nop
 {
 public:
+	bcache_nop(const Policy& policy = Policy()) : m_policy(policy) {}
 	typedef bnode<Policy> node_t;
 	typedef typename apply_policy<Policy>::ptr_t ptr_t;
 	ptr_t new_node(node_t* node) { return ptr_t(node); }
 	off_t get_oldest(const ptr_t& ptr) { std::numeric_limits<off_t>::max(); }
 	bool load_below(ptr_t& ptr, off_t off) { return true; }
+	Policy& get_policy() { return m_policy; }
+private:
+	Policy m_policy;
 };
 
 #endif

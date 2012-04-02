@@ -38,10 +38,20 @@ private:
 	typedef typename Policy::value_t value_t;
 	typedef typename apply_policy<Policy>::ptr_t ptr_t;
 	typedef typename apply_policy<Policy>::cache_t cache_t;
+
+	class functor_helper  // Allows policy 'less' to be a normal member function (or a functor)
+	{
+	public:
+		functor_helper(Policy& policy) : m_policy(policy) {}
+		bool operator()(const key_t& k1, const key_t& k2) { return m_policy.less(k1, k2); }
+	private:
+		Policy& m_policy;
+	};
 public:
 	// Create a new 'tree' with one element
-	bnode(const key_t& k, const value_t& v)
-		: m_height(0)      // We are a leaf
+	bnode(Policy& policy, const key_t& k, const value_t& v)
+		: m_policy(policy)
+		, m_height(0)      // We are a leaf
 		, m_total(v)       // Total is our one entry
 		, m_size(1)
 	{
@@ -51,12 +61,13 @@ public:
 	}
 
 	// Make a new root node based on two nodes
-	bnode(size_t height, const ptr_t& n1, const ptr_t& n2)
-		: m_height(height)  // Compute our height
+	bnode(Policy& policy, size_t height, const ptr_t& n1, const ptr_t& n2)
+		: m_policy(policy)
+		, m_height(height)  // Compute our height
 		, m_total(n1->total())  // Compute an initial total
 		, m_size(2)
 	{
-		Policy::aggregate(m_total, n2->total());
+		m_policy.aggregate(m_total, n2->total());
 		g_node_count++;
 		assign(0, n1);
 		assign(1, n2);
@@ -72,8 +83,8 @@ public:
 		::serialize(out, size());
 		for(size_t i = 0; i < size(); i++)
 		{
-			Policy::serialize(out, key(i));
-			Policy::serialize(out, val(i));
+			m_policy.serialize(out, key(i));
+			m_policy.serialize(out, val(i));
 			if (m_height != 0)
 			{
 				off_t child_loc = ptr(i).get_offset();
@@ -93,8 +104,8 @@ public:
 		{
 			key_t key;
 			value_t val;
-			Policy::deserialize(in, key);
-			Policy::deserialize(in, val);
+			m_policy.deserialize(in, key);
+			m_policy.deserialize(in, val);
 			if (m_height != 0)
 			{
 				off_t child_loc;
@@ -112,7 +123,7 @@ public:
 	bnode* copy() const
 	{
 		// Make a copy of a node	
-		bnode* copy = new bnode(m_height);
+		bnode* copy = new bnode(m_policy, m_height);
 		copy->m_total = m_total;
 		copy->m_size = m_size;
 		for(size_t i = 0; i < size(); i++)
@@ -258,19 +269,20 @@ public:
 	size_t size() const { return m_size; }
 	size_t height() const { return m_height; }
 	const key_t& key(size_t i) const { return m_keys[i]; }
+	Policy& get_policy() const { return m_policy; }
 	const value_t& val(size_t i) const { return m_values[i]; }
 	const value_t& total() const { return m_total; }
 	const ptr_t& ptr(size_t i) const { return m_ptrs[i]; } 
 	ptr_t& ptr(size_t i) { return m_ptrs[i]; } 
 
 	size_t lower_bound(const key_t& k) const 
-	{ return std::lower_bound(m_keys, m_keys + m_size, k, Policy::less_then) - m_keys; }
+	{ return std::lower_bound(m_keys, m_keys + m_size, k, functor_helper(m_policy)) - m_keys; }
 	size_t upper_bound(const key_t& k) const 
-	{ return std::upper_bound(m_keys, m_keys + m_size, k, Policy::less_then) - m_keys; }
+	{ return std::upper_bound(m_keys, m_keys + m_size, k, functor_helper(m_policy)) - m_keys; }
 	size_t find(const key_t& k) const
 	{
 		size_t i = lower_bound(k);
-		if (i != m_size && !Policy::less_then(k, m_keys[i])) return i;
+		if (i != m_size && !m_policy.less(k, m_keys[i])) return i;
 		return m_size;
 	}
 
@@ -340,8 +352,9 @@ public:
 
 	// Constructor for an empty bnode
 	// Used during deserialization
-	bnode(int height) 
-		: m_height(height)
+	bnode(Policy& policy, int height) 
+		: m_policy(policy)
+		, m_height(height)
 		, m_size(0)
 	{
 		g_node_count++;
@@ -411,7 +424,7 @@ public:
 		// Do the rest of the entries
 		for(size_t i = 1; i < size(); i++)
 		{
-			Policy::aggregate(total, val(i));
+			m_policy.aggregate(total, val(i));
 		}
 		return total;
 	}
@@ -433,7 +446,7 @@ private:
 		}
 
 		// Create a new bnode with the same height as me
-		bnode* r = new bnode(m_height);
+		bnode* r = new bnode(m_policy, m_height);
 
 		// Compute the size of half (rounded down) to keep
 		int keep_size = size() / 2;
@@ -491,7 +504,7 @@ private:
 		if (peer->size() > min_size)
 		{
 			// Get the appropriate peer entry
-			size_t pi = (Policy::less_then(peer->key(0), key(0))) 
+			size_t pi = (m_policy.less(peer->key(0), key(0))) 
 					? peer->size() - 1 // Last of peer before me
 					: 0 // First of peer after me
 					;
@@ -520,7 +533,9 @@ private:
 		return ur_merge;
 	}
 
+
 private:
+	Policy& m_policy;
 	int m_height;  // The height of this node (0 = leaf)
 	value_t m_total;  // Total of all down entries, cached
 	size_t m_size;
