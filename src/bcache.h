@@ -196,16 +196,16 @@ public:
 		return ptr_t(r);
 	}
 
-	void get_root(const std::string& name, ptr_t& root, size_t& height)
+	void get_root(const std::string& name, ptr_t& root, size_t& height, size_t& size)
 	{
 		off_t root_node;
 		off_t root_oldest;
-		read_root(name, root_node, root_oldest, height);
+		read_root(name, root_node, root_oldest, height, size);
 		if (root_node != 0)
 			root = lookup(root_node, root_oldest);
 	}
 	
-	void sync(const std::string& name, const ptr_t& until, size_t height)
+	void sync(const std::string& name, const ptr_t& until, size_t height, size_t size)
 	{
 		off_t ll;
 		{
@@ -227,7 +227,7 @@ public:
 			size_t oldest = proxy.m_oldest;
 			// Write the root info outside of the lock
 			m_mutex.unlock();
-			write_root(name, off, oldest, height);
+			write_root(name, off, oldest, height, size);
 			m_mutex.lock();
 			// Remove excess cached nodes
 			while(m_lru.size() > m_max_lru_size)
@@ -306,13 +306,14 @@ private:
                 return r;
         }
 
-        void write_root(const std::string& name, off_t off, off_t oldest, size_t height)
+        void write_root(const std::string& name, off_t off, off_t oldest, size_t height, size_t size)
         {
                 std::vector<char> buf;
                 vector_writer io(buf);
                 serialize(io, off);
                 serialize(io, oldest); 
                 serialize(io, height); 
+                serialize(io, size); 
                 m_store.write_root(name, buf);
         }
 
@@ -324,7 +325,7 @@ private:
 		bnode.deserialize(io, *this);
 	}
 
-	void read_root(const std::string& name, off_t& off, off_t& oldest, size_t& height)
+	void read_root(const std::string& name, off_t& off, off_t& oldest, size_t& height, size_t& size)
 	{
 		std::vector<char> buf;
 		m_store.read_root(name, buf);
@@ -339,6 +340,7 @@ private:
 		deserialize(io, off);
 		deserialize(io, oldest);
 		deserialize(io, height);
+		deserialize(io, size);
 	}
 
 	Policy m_policy;		

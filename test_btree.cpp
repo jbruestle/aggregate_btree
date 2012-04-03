@@ -144,7 +144,12 @@ public:
 	}
 
 	void clear() { m_btree.clear(); m_mtree.clear(); }
-	size_t size() const { return m_mtree.size(); }
+	size_t size() const { 
+		size_t s1 = m_mtree.size();
+		size_t s2 = m_btree.size();
+		assert(s1 == s2);
+		return s1; 
+	}
 
 	void sync(const std::string& name)
 	{
@@ -417,6 +422,7 @@ int test_disk()
 		break;
 		}
 		if (noisy) t.print();
+		t.size();
 		if (!t.validate())
 			exit(1);
 	}
@@ -445,7 +451,8 @@ void test_in_memory()
 	{
 		int k = random() % 1000;
 		int v = random() % 100;
-		tree.update(k, always_update(v));
+		tree[k] = v;
+		//tree.update(k, always_update(v));
 	}
 	bt_t tree2 = tree;
 	//tree = tree2;

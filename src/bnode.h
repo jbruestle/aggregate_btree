@@ -141,7 +141,9 @@ public:
 	enum update_result 
 	{
 		ur_nop,  // Didn't make any changes
-		ur_modify, // Just altered the entry, didn't alter peer or split
+		ur_modify, // Just altered the entry
+		ur_insert, // Inserted an entry, but no need for split
+		ur_erase, // Erased an entry, but no effect on peer
 		ur_split,  // Had to split the node
 		ur_steal, // Erased and stole and entry from peer
 		ur_merge, // Erased and merged with peer
@@ -187,7 +189,7 @@ public:
 				insert(k, v, ptr_t()); 
 				// Maybe do a split
 				split = maybe_split(); 
-				return split ? ur_split : ur_modify;
+				return split ? ur_split : ur_insert;
 			}
 			else 
 			{
@@ -214,12 +216,12 @@ public:
 			delete new_node;
 			return ur_nop;
 		}
-		if (r == ur_modify)
+		if (r == ur_modify || r == ur_erase || r == ur_insert)
 		{
 			// Easy case, keep new node, peer is untouched
 			assign(i,cache.new_node(new_node));
 			recompute_total();  // Recompute self
-			return ur_modify;  // Send status up
+			return r;  // Send status up
 		}
 		if (r == ur_split)
 		{
@@ -230,7 +232,7 @@ public:
 			insert(cache.new_node(overflow));
 			// Check for yet another split
 			split = maybe_split();
-			return split ? ur_split : ur_modify;
+			return split ? ur_split : ur_insert;
 		}
 		// We modified peer, update info
 		m_keys[pi] = m_ptrs[pi]->key(0);
@@ -240,7 +242,7 @@ public:
 			// Keep new node
 			assign(i, cache.new_node(new_node));
 			recompute_total();  // Recompute self
-			return ur_modify;  // Send up status
+			return ur_erase;  // Send up status
 		}
 		// r == ur_merge
 		// Keep only peer (main down ptr is deleted)
@@ -482,7 +484,7 @@ private:
 			// Still need to fix total
 			recompute_total();
 			// Return easy case
-			return ur_modify; 
+			return ur_erase; 
 		}	
 		// Handle the special root case
 		if (peer_ptr == ptr_t())
@@ -496,7 +498,7 @@ private:
 			// Figure out which enum to return
 			if (m_height != 0 && size() == 1)
 				return ur_singular; // Down to 1 entry at top of tree
-			return ur_modify;
+			return ur_erase;
 		}
 		// We are going to modify peer, let's copy first
 		bnode* peer = peer_ptr->copy();

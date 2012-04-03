@@ -36,24 +36,29 @@ class btree
 
 public:
 	typedef typename Policy::key_t key_type;
-	typedef typename Policy::value_t data_type;
+	typedef typename Policy::value_t mapped_type;
 	typedef std::pair<key_type, data_t> value_type;
+	typedef size_t size_type;
+	
 	btree(cache_ptr_t cache)
 		: m_cache(cache)
 		, m_height(0)
+		, m_size(0)
 	{}
 
 	btree(cache_ptr_t cache, const std::string& name)
 		: m_cache(cache)
 		, m_height(0)
+		, m_size(0)
 	{
-		m_cache->get_root(name, m_root, m_height);
+		m_cache->get_root(name, m_root, m_height, m_size);
 	}
 
 	btree(const btree& rhs)
 		: m_cache(rhs.m_cache)
 		, m_root(rhs.m_root)
 		, m_height(rhs.m_height)
+		, m_size(rhs.m_size)
 	{}
 
 	btree& operator=(const btree& rhs)
@@ -61,6 +66,7 @@ public:
 		m_cache = rhs.m_cache;
 		m_root = rhs.m_root;
 		m_height = rhs.m_height;
+		m_size = rhs.m_size;
 		return *this;
 	}
 
@@ -81,6 +87,7 @@ public:
 			// Otherwise, create the initial node
 			m_root = m_cache->new_node(new node_t(m_cache->get_policy(), k, v));
 			m_height++;
+			m_size++;
 			return true;
 		}
 
@@ -96,9 +103,18 @@ public:
 			delete w_root;
 			return false;
 		}
-		if (r == node_t::ur_modify)
+		else if (r == node_t::ur_modify)
 		{
-			// Easy case, just update main node
+			m_root = m_cache->new_node(w_root);
+		}
+		else if (r == node_t::ur_insert)
+		{
+			m_size++;
+			m_root = m_cache->new_node(w_root);
+		}
+		else if (r == node_t::ur_erase)
+		{
+			m_size--;
 			m_root = m_cache->new_node(w_root);
 		}
 		else if (r == node_t::ur_split)
@@ -111,6 +127,7 @@ public:
 				m_cache->new_node(overflow)
 			));
 			m_height++;  
+			m_size++;
 		} 
 		else if (r == node_t::ur_singular)
 		{
@@ -119,6 +136,7 @@ public:
 			m_root = w_root->ptr(0);
 			delete w_root;
 			m_height--;
+			m_size--;
 		}
 		else if (r == node_t::ur_empty)
 		{
@@ -126,20 +144,12 @@ public:
 			m_root = ptr_t();
 			delete w_root;
 			m_height = 0;
+			m_size = 0;
 		}
 		clean_one();
 		return true;	
 	}
 	
-	void insert(const value_type& x) 
-	{
-	}
-
-	void clear()
-	{
-		m_root = ptr_t();
-		m_height = 0;
-	}
 
 	class iterator;
 
@@ -203,24 +213,24 @@ private:
 	{
 		friend class pair_proxy;
 		friend class btree;
-		data_proxy(btree& tree, const key_type& key, const data_type& data)
+		data_proxy(btree& tree, const key_type& key, const mapped_type& data)
 			: m_tree(tree)
 			, m_key(key)
 			, m_data(data)
 		{}
 	public:
 		operator data_t() { return m_data; }
-		data_proxy& operator=(const data_t& rhs) { m_tree.update(m_key, rhs); }
+		data_proxy& operator=(const data_t& rhs) { m_tree.set(m_key, rhs); }
 	private:
 		btree& m_tree;
 		key_type m_key;
-		data_type m_data;
+		mapped_type m_data;
 	};
 
 	class pair_proxy
 	{
 		friend class iterator;
-		pair_proxy(btree& tree, const key_type& key, const data_type& data)
+		pair_proxy(btree& tree, const key_type& key, const mapped_type& data)
 			: second(tree, key, data)
 			, first(second.m_key)
 		{}
@@ -266,6 +276,129 @@ public:
 	friend class iterator;
 	friend class const_iterator;
 
+	class always_update
+	{
+	public:
+		always_update(const mapped_type& data) : m_data(data) {}
+		bool operator()(mapped_type& out, bool& exists) const 
+		{
+			out = m_data; 
+			exists = true; 
+			return true; 
+		}
+	private:
+		mapped_type m_data;
+	};
+
+	class only_insert
+	{
+	public:
+		only_insert(const mapped_type& data) : m_data(data) {}
+		bool operator()(mapped_type& out, bool& exists) const 
+		{
+			if (exists) return false;
+			out = m_data; 
+			exists = true; 
+			return true; 
+		}
+	private:
+		mapped_type m_data;
+	};
+
+	class always_erase
+	{
+	public:
+		always_erase() {}
+		bool operator()(mapped_type& out, bool& exists) const 
+		{
+			exists = false; 
+			return true; 
+		}
+	};
+
+	void set(const key_type& key, const mapped_type& data)
+	{
+		update(key, always_update(data));
+	}
+
+	void clear()
+	{
+		m_root = ptr_t();
+		m_height = 0;
+	}
+
+	bool empty()
+	{
+		return m_root == ptr_t();
+	}
+
+	size_t size() const
+	{
+		return m_size;
+	}
+
+	std::pair<iterator, bool> insert(const value_type& pair)
+	{
+		bool inserted = update(pair.first, only_insert(pair.value));
+		iterator it = find(pair.first);
+		return std::make_pair(it, inserted);
+	}
+
+	// Note: This is no faster than a regular insert
+	iterator insert(const iterator& position, const value_type& pair)
+	{
+		return insert(pair).first;
+	}
+
+	template <class InputIterator>
+	void insert(InputIterator first, InputIterator last)
+	{
+		while(first != last)
+		{
+			insert(*first);
+			++first;
+		}
+	}
+
+	void erase(iterator it)
+	{
+		update(it->first, always_erase());
+	}
+
+	size_t erase(const key_type& key)
+	{
+		if (update(key, always_erase()))
+			return 1;
+		else
+			return 0;
+	}
+
+	// TODO: This could be done faster (log(N) always regardless of length of range)
+	void erase(iterator it, iterator end)
+	{
+		while(it != end)
+		{
+			iterator next = it;
+			++next;
+			erase(it);
+			it = next;
+		}
+	}
+
+	data_proxy operator[](const key_type& k)
+	{
+		const_iterator r = find(k); 
+		return data_proxy(*this, k, r.m_state.get_value());	
+	}
+
+	void swap(btree& other)
+	{
+		std::swap(m_cache, other.m_cache);		
+		std::swap(m_root, other.m_root);		
+		std::swap(m_height, other.m_height);		
+		std::swap(m_size, other.m_size);		
+	}
+		
 	const_iterator begin() const { 
 		const_iterator r(*this); r.m_state.set_begin(); return r; 
 	}
@@ -302,6 +435,14 @@ public:
 	std::pair<iterator,iterator> equal_range(const key_type& x) {
 		return std::make_pair(lower_bound(x), upper_bound(x));
 	}
+	
+	size_t count(const key_type& x)
+	{
+		const_iterator it = find(x);
+		if (it == end()) return 0;
+		else return 1;
+	}
+	
 
 	// Logically, accumulate_until moves 'cur' forward, adding cur->second to total until either:
 	// 1) cur == end
@@ -320,7 +461,7 @@ public:
 		cur.m_iterator.m_state.accumulate_until(threshold, total, end.m_state);
 	}
 
-	void sync(const std::string& name) { assert(m_cache); m_cache->sync(name, m_root, m_height); }
+	void sync(const std::string& name) { assert(m_cache); m_cache->sync(name, m_root, m_height, m_size); }
 
 #ifdef __BTREE_DEBUG
 	void print() const
@@ -359,6 +500,7 @@ private:
 	cache_ptr_t m_cache;
 	ptr_t m_root;
 	size_t m_height;
+	size_t m_size;
 };
 
 template<class Value>
