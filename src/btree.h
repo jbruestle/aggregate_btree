@@ -31,18 +31,19 @@ class btree
 	typedef bnode<Policy> node_t;
 	typedef typename apply_policy<Policy>::ptr_t ptr_t;
 	typedef typename apply_policy<Policy>::cache_t cache_t;
-	typedef typename Policy::key_t key_t;
-	typedef typename Policy::value_t value_t;
-public:
-	btree() : m_cache(NULL) {}
+	typedef typename apply_policy<Policy>::cache_ptr_t cache_ptr_t;
+	typedef typename Policy::value_t data_t;
 
-	btree(cache_t& cache)
-		: m_cache(&cache)
+public:
+	typedef typename Policy::key_t key_type;
+	typedef std::pair<key_type, data_t> value_type;
+	btree(cache_ptr_t cache)
+		: m_cache(cache)
 		, m_height(0)
 	{}
 
-	btree(cache_t& cache, const std::string& name)
-		: m_cache(&cache)
+	btree(cache_ptr_t cache, const std::string& name)
+		: m_cache(cache)
 		, m_height(0)
 	{
 		m_cache->get_root(name, m_root, m_height);
@@ -62,15 +63,14 @@ public:
 		return *this;
 	}
 
-public:
 	template<class Updater>
-	bool update(const key_t& k, const Updater& updater)
+	bool update(const key_type& k, const Updater& updater)
 	{
 		assert(m_cache);
 		// If root is null, see if an insert works
 		if (m_root == ptr_t())
 		{
-			value_t v;
+			data_t v;
 			bool exists = false;
 			// Try the insert
 			bool changed = updater(v, exists);
@@ -129,15 +129,16 @@ public:
 		clean_one();
 		return true;	
 	}
-
+	
+	void insert(const value_type& x) 
+	{
+	}
 	void clear()
 	{
 		m_root = ptr_t();
 		m_height = 0;
-		m_cache = NULL;
 	}
 
-	typedef std::pair<key_t, value_t> value_type;
 	class const_iterator : public boost::iterator_facade<
 		const_iterator,
 		const value_type,
@@ -166,15 +167,19 @@ public:
 	const_iterator end() const { 
 		const_iterator r(*this); return r; 
 	}
-	const_iterator find(const key_t& k) const { 
+	const_iterator find(const key_type& k) const { 
 		const_iterator r(*this); r.m_state.set_find(k); return r; 
 	}
-	const_iterator lower_bound(const key_t& k) const { 
+	const_iterator lower_bound(const key_type& k) const { 
 		const_iterator r(*this); r.m_state.set_lower_bound(k); return r; 
 	}
-	const_iterator upper_bound(const key_t& k) const { 
+	const_iterator upper_bound(const key_type& k) const { 
 		const_iterator r(*this); r.m_state.set_upper_bound(k); return r; 
 	}
+	std::pair<const_iterator,const_iterator> equal_range(const key_type& x) const {
+		return std::make_pair(lower_bound(x), upper_bound(x));
+	}
+	
 
 	// Logically, accumulate_until moves 'cur' forward, adding cur->second to total until either:
 	// 1) cur == end
@@ -182,7 +187,7 @@ public:
 	// That is, we stop right before threshold becomes true
 	// In reality, the whole thing is done in log(n) time through fancy tricks
 	template<class Functor>
-	void accumulate_until(const_iterator& cur, value_t& total, const const_iterator& end, const Functor& threshold)
+	void accumulate_until(const_iterator& cur, data_t& total, const const_iterator& end, const Functor& threshold)
 	{
 		cur.m_state.accumulate_until(threshold, total, end.m_state);
 	}
@@ -223,9 +228,43 @@ private:
 		m_cache->load_below(m_root, lowest_loc());
 	}
 
-	cache_t* m_cache;
+	cache_ptr_t m_cache;
 	ptr_t m_root;
 	size_t m_height;
+};
+
+template<class Value>
+class plus_equal
+{
+public:
+	void operator()(Value& out, const Value& in) { out += in; }
+};
+
+template<class Key, class Value, class Aggregate, class Compare>
+class memory_policy
+{
+public:
+	static const bool use_cache = false;
+	static const size_t min_size = 2;
+	static const size_t max_size = 4;
+	typedef Key key_t;
+	typedef Value value_t;
+	memory_policy(const Aggregate& _aggregate, const Compare& _less)
+		: aggregate(_aggregate), less(_less)
+	{}
+	Aggregate aggregate;
+	Compare less;
+};
+
+template<class Key, class Value, class Aggregate = plus_equal<Value>, class Compare = std::less<Key> >
+class memory_btree : public btree<memory_policy<Key, Value, Aggregate, Compare> >
+{
+	typedef memory_policy<Key, Value, Aggregate, Compare> policy_t;
+	typedef typename apply_policy<policy_t>::cache_ptr_t cache_ptr_t;
+public:
+	memory_btree(const Aggregate& aggregate = Aggregate(), const Compare& less = Compare())
+		: btree<policy_t>(cache_ptr_t(new bcache_nop<policy_t>(policy_t(aggregate, less)))) {}
+	memory_btree(const memory_btree& rhs) : btree<policy_t>(rhs) {}
 };
 
 #endif

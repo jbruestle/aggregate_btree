@@ -49,6 +49,7 @@ struct apply_policy_impl
 {
 	typedef bcache<Policy> cache_t;
 	typedef bnode_cache_ptr<Policy> ptr_t;
+	typedef cache_t* cache_ptr_t;
 };
 
 template<class Policy>
@@ -56,6 +57,7 @@ struct apply_policy_impl<Policy, false>
 {
 	typedef bcache_nop<Policy> cache_t;
 	typedef boost::shared_ptr<bnode<Policy> > ptr_t;
+	typedef boost::shared_ptr<cache_t> cache_ptr_t;
 }; 
 
 template<class Policy>
@@ -63,6 +65,7 @@ struct apply_policy
 {
 	typedef typename apply_policy_impl<Policy, Policy::use_cache>::cache_t cache_t;
 	typedef typename apply_policy_impl<Policy, Policy::use_cache>::ptr_t ptr_t;
+	typedef typename apply_policy_impl<Policy, Policy::use_cache>::cache_ptr_t cache_ptr_t;
 };
  
 #endif

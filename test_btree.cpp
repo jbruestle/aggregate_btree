@@ -98,7 +98,7 @@ private:
 class mock_tree
 {
 public:
-	mock_tree(bcache<int_int_policy>& cache, const std::string& name, const mtree_t& mt) 
+	mock_tree(bcache<int_int_policy>* cache, const std::string& name, const mtree_t& mt) 
 		: m_btree(cache, name)
 		, m_mtree(mt)
 	{}
@@ -257,7 +257,7 @@ int test_disk()
 	file_bstore *fbs = new file_bstore();
 	fbs->open("/tmp/lame_tree", true);
 	bcache<int_int_policy>* cache = new bcache<int_int_policy>(*fbs, 10, 20);
-	mock_tree t(*cache, "root", mtree_t());
+	mock_tree t(cache, "root", mtree_t());
 	std::vector<mock_tree> snaps;
 	for(size_t i = 0; i < k_num_snapshots; i++)
 		snaps.push_back(t);
@@ -281,7 +281,7 @@ int test_disk()
 				fbs = new file_bstore();
 				fbs->open("/tmp/lame_tree", false);
 				cache = new bcache<int_int_policy>(*fbs, 10, 20);
-				t = mock_tree(*cache, "root", save);
+				t = mock_tree(cache, "root", save);
 				for(size_t i = 0; i < k_num_snapshots; i++)
 					snaps.push_back(t);
 			}
@@ -436,29 +436,19 @@ int test_disk()
 	assert(true);
 }
 
-struct int_int_inmem
-{
-	typedef int key_t;
-	typedef int value_t;
-	static bool less(const int& a, const int& b) { return a < b; }
-	static void aggregate(int& out, const int& in) { out += in; }
-	static const bool use_cache = false;
-	static const size_t min_size = 2;
-	static const size_t max_size = 4;
-};
-
 void test_in_memory()
 {
-	typedef btree<int_int_inmem> bt_t;
+	typedef memory_btree<int, int> bt_t;
 	typedef bt_t::const_iterator it_t;
-	bcache_nop<int_int_inmem> no_cache;
-	bt_t tree(no_cache);
+	bt_t tree;
 	for(size_t i = 0; i < 100; i++)
 	{
 		int k = random() % 1000;
 		int v = random() % 100;
 		tree.update(k, always_update(v));
 	}
+	bt_t tree2 = tree;
+	//tree = tree2;
 	it_t it = tree.begin();
 	it_t it_end = tree.end();
 	int total = 0;
@@ -471,8 +461,20 @@ void test_in_memory()
 		//printf("(%d, %d)\n", it->first, it->second);
 		my_total += it->second;
 	}
+	tree.clear();
 	printf("Computed total = %d\n", my_total);
 	assert(my_total = total);
+	total = 0;
+	it = tree2.begin();
+	tree2.accumulate_until(it, total, tree2.end(), forever_functor());
+	printf("Saved computed total = %d\n", my_total);
+	assert(my_total = total);
+	tree2 = tree;
+	it = tree2.begin();
+	total = 0;
+	tree2.accumulate_until(it, total, tree2.end(), forever_functor());
+	printf("Saved computed total = %d\n", total);
+	assert(total == 0);
 }
 
 int main()

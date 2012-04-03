@@ -111,8 +111,8 @@ public:
 	template<class Functor>
 	void accumulate_until(const Functor& threshold, value_t& start, const biter& end)
 	{
-		// Assert that we are not at end
-		assert(!is_end());
+		// Skip things if we are already at the end
+		if (is_end()) return;
 		// Assert that we are part of the same tree
 		assert(m_nodes[0] == end.m_nodes[0]);
 
