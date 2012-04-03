@@ -310,7 +310,7 @@ public:
 	}
 	const key_t& get_key() const { assert(!is_end()); return m_pair.first; }
 	const value_t& get_value() const { assert(!is_end()); return m_pair.second; }
-	ptr_t get_root() const { return m_nodes[0]; }
+	ptr_t get_root() const { ptr_t r;  if (m_height != 0) r = m_nodes[0]; return r; }
 	size_t get_height() const { return m_height; }
 
 private:

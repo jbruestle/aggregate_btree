@@ -439,7 +439,7 @@ int test_disk()
 void test_in_memory()
 {
 	typedef memory_btree<int, int> bt_t;
-	typedef bt_t::const_iterator it_t;
+	typedef bt_t::iterator it_t;
 	bt_t tree;
 	for(size_t i = 0; i < 100; i++)
 	{

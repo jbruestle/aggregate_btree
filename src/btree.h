@@ -36,6 +36,7 @@ class btree
 
 public:
 	typedef typename Policy::key_t key_type;
+	typedef typename Policy::value_t data_type;
 	typedef std::pair<key_type, data_t> value_type;
 	btree(cache_ptr_t cache)
 		: m_cache(cache)
@@ -133,11 +134,14 @@ public:
 	void insert(const value_type& x) 
 	{
 	}
+
 	void clear()
 	{
 		m_root = ptr_t();
 		m_height = 0;
 	}
+
+	class iterator;
 
 	class const_iterator : public boost::iterator_facade<
 		const_iterator,
@@ -146,40 +150,158 @@ public:
 	{
 		friend class boost::iterator_core_access;
 		friend class btree;
-	public:
-		const_iterator() {}
-		const_iterator(const btree& self) 
-			: m_state(self.m_root, self.m_height) 
+		friend class iterator;
+
+		const_iterator(btree& self) 
+			: m_self(&self)
+			, m_state(self.m_root, self.m_height) 
 		{}
+	public:
+		const_iterator() : m_self(NULL) {}
+		const_iterator(const const_iterator& rhs)
+			: m_self(rhs.m_self)
+			, m_state(rhs.m_state)
+		{}
+		const_iterator(const iterator& rhs)
+			: m_self(rhs.m_iterator.m_self)
+			, m_state(rhs.m_iterator.m_state)
+		{}
+
+		const_iterator& operator=(const const_iterator& rhs)
+		{
+			m_self = rhs.m_self;
+			m_state = rhs.m_state;
+			return *this;
+		}
+		const_iterator& operator=(const iterator& rhs)
+		{
+			m_self = rhs.m_iterator.m_self;
+			m_state = rhs.m_iterator.m_state;
+			return *this;
+		}
 	private:
-		biter<Policy> m_state;
-		void increment() { m_state.increment(); }
-		void decrement() { m_state.decrement(); }
-		bool equal(const_iterator const& other) const { return m_state == other.m_state; }
-		const value_type& dereference() const { return m_state.get_pair(); }
+		btree* m_self;
+		mutable biter<Policy> m_state;
+		void increment() { maybe_update(); m_state.increment(); }
+		void decrement() { maybe_update(); m_state.decrement(); }
+		bool equal(const_iterator const& other) const { 
+			if (m_self != other.m_self) return false;
+			return m_state.get_key() == other.m_state.get_key();
+		}
+		const value_type& dereference() const { maybe_update(); return m_state.get_pair(); }
+		void maybe_update() const { 
+			if (m_self == NULL) return;
+			if (m_self->m_root == m_state.get_root()) return;
+			biter<Policy> next(m_self->m_root, m_self->m_height);
+			next.set_find(m_state.get_key());
+			m_state = next;
+		}
 	};
 
+private:
+	class data_proxy
+	{
+		friend class pair_proxy;
+		friend class btree;
+		data_proxy(btree& tree, const key_type& key, const data_type& data)
+			: m_tree(tree)
+			, m_key(key)
+			, m_data(data)
+		{}
+	public:
+		operator data_t() { return m_data; }
+		data_proxy& operator=(const data_t& rhs) { m_tree.update(m_key, rhs); }
+	private:
+		btree& m_tree;
+		key_type m_key;
+		data_type m_data;
+	};
+
+	class pair_proxy
+	{
+		friend class iterator;
+		pair_proxy(btree& tree, const key_type& key, const data_type& data)
+			: second(tree, key, data)
+			, first(second.m_key)
+		{}
+	public:
+		pair_proxy* operator->() { return this; }
+		data_proxy second;
+		const key_type& first;
+	};
+public:
+	class iterator : public boost::iterator_facade<
+		iterator,
+		value_type,
+		boost::bidirectional_traversal_tag>
+	{
+		friend class boost::iterator_core_access;
+		friend class btree;
+		friend class const_iterator;
+		iterator(const btree& self) : m_iterator(self) {}
+	public:
+		iterator() {}
+		iterator(const iterator& rhs) : m_iterator(rhs.m_iterator) {}
+		iterator& operator=(const iterator& rhs) 
+		{
+			m_iterator = rhs.m_iterator;
+			return *this;
+		}
+		pair_proxy operator->() const
+		{
+			return pair_proxy(
+				*m_iterator.m_self, 
+				m_iterator.m_state.get_key(),
+				m_iterator.m_state.get_value()
+			);
+		}
+	private:
+		const_iterator m_iterator;
+		void increment() { m_iterator++; }
+		void decrement() { m_iterator--; }
+		bool equal(iterator const& other) const { return m_iterator == other.m_iterator; }
+	};
+
+
+	friend class iterator;
 	friend class const_iterator;
 
 	const_iterator begin() const { 
 		const_iterator r(*this); r.m_state.set_begin(); return r; 
 	}
+	iterator begin() { 
+		iterator r(*this); r.m_iterator.m_state.set_begin(); return r; 
+	}
 	const_iterator end() const { 
 		const_iterator r(*this); return r; 
+	}
+	iterator end() { 
+		iterator r(*this); return r; 
 	}
 	const_iterator find(const key_type& k) const { 
 		const_iterator r(*this); r.m_state.set_find(k); return r; 
 	}
+	iterator find(const key_type& k) { 
+		iterator r(*this); r.m_iterator.m_state.set_find(k); return r; 
+	}
 	const_iterator lower_bound(const key_type& k) const { 
 		const_iterator r(*this); r.m_state.set_lower_bound(k); return r; 
+	}
+	iterator lower_bound(const key_type& k) { 
+		iterator r(*this); r.m_iterator.m_state.set_lower_bound(k); return r; 
 	}
 	const_iterator upper_bound(const key_type& k) const { 
 		const_iterator r(*this); r.m_state.set_upper_bound(k); return r; 
 	}
+	iterator upper_bound(const key_type& k) { 
+		iterator r(*this); r.m_iterator.m_state.set_upper_bound(k); return r; 
+	}
 	std::pair<const_iterator,const_iterator> equal_range(const key_type& x) const {
 		return std::make_pair(lower_bound(x), upper_bound(x));
 	}
-	
+	std::pair<iterator,iterator> equal_range(const key_type& x) {
+		return std::make_pair(lower_bound(x), upper_bound(x));
+	}
 
 	// Logically, accumulate_until moves 'cur' forward, adding cur->second to total until either:
 	// 1) cur == end
@@ -190,6 +312,12 @@ public:
 	void accumulate_until(const_iterator& cur, data_t& total, const const_iterator& end, const Functor& threshold)
 	{
 		cur.m_state.accumulate_until(threshold, total, end.m_state);
+	}
+
+	template<class Functor>
+	void accumulate_until(iterator& cur, data_t& total, const const_iterator& end, const Functor& threshold)
+	{
+		cur.m_iterator.m_state.accumulate_until(threshold, total, end.m_state);
 	}
 
 	void sync(const std::string& name) { assert(m_cache); m_cache->sync(name, m_root, m_height); }
