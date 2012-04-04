@@ -24,6 +24,8 @@
 
 #include "bdecl.h"
 
+namespace btree_impl {
+
 // Pinned proxy is a helper class to
 // pin and unpin a proxy to allow RAII
 template<class Policy>
@@ -125,4 +127,5 @@ private:
 	off_t m_oldest;
 };
 
+}
 #endif

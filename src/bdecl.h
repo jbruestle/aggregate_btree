@@ -20,6 +20,8 @@
 
 #include <boost/shared_ptr.hpp>
 
+namespace btree_impl {
+
 template<class Policy>
 class bnode;
 
@@ -67,6 +69,8 @@ struct apply_policy
 	typedef typename apply_policy_impl<Policy, Policy::use_cache>::ptr_t ptr_t;
 	typedef typename apply_policy_impl<Policy, Policy::use_cache>::cache_ptr_t cache_ptr_t;
 };
+
+}
  
 #endif
 

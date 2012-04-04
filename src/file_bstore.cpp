@@ -39,9 +39,6 @@ struct root_info
 	std::vector<char> data;
 };
 
-
-
-
 // Open existing 'tree', returns location of root or 0 if new tree (dir was empty)
 // Throws on an error, creates a new directory if there isn't one and create is true
 void file_bstore::open(const std::string& dir, bool create) 
@@ -87,6 +84,7 @@ void file_bstore::open(const std::string& dir, bool create)
 
 void file_bstore::close()
 {
+	if (m_cur_slab == NULL) return;
 	lock_t lock(m_mutex);
 
 	// Close any open files (m_cur_slab is also in m_slabs)
@@ -103,12 +101,16 @@ void file_bstore::close()
 
 off_t file_bstore::write_node(const std::vector<char>& record) 
 { 
+	if (m_cur_slab == NULL)
+		throw io_exception("file_store is not open");
 	lock_t lock(m_mutex); 
 	return write_record('N', record); 
 }
 
 void file_bstore::write_root(const std::string& name, const std::vector<char>& record) 
 { 
+	if (m_cur_slab == NULL)
+		throw io_exception("file_store is not open");
 	std::vector<char> name_cpy;
 	name_cpy.resize(name.size());
 	memcpy(&name_cpy[0], name.data(), name.size());
@@ -119,12 +121,16 @@ void file_bstore::write_root(const std::string& name, const std::vector<char>& r
 
 void file_bstore::read_node(off_t which, std::vector<char>& record) 
 { 
+	if (m_cur_slab == NULL)
+		throw io_exception("file_store is not open");
 	lock_t lock(m_mutex);
 	safe_read_record(which, 'N', record);
 }
 
 void file_bstore::read_root(const std::string& name, std::vector<char>& record)
 {
+	if (m_cur_slab == NULL)
+		throw io_exception("file_store is not open");
 	lock_t lock(m_mutex);
 	off_t data = find_root(name);
 	if (data == 0)
@@ -137,8 +143,9 @@ void file_bstore::read_root(const std::string& name, std::vector<char>& record)
 
 void file_bstore::clear_before(off_t offset)
 {
+	if (m_cur_slab == NULL)
+		throw io_exception("file_store is not open");
 	lock_t lock(m_mutex);
-
 	slabs_t::iterator itEnd = m_slabs.upper_bound(offset);
 	itEnd--;
 	for(slabs_t::iterator it = m_slabs.begin(); it != itEnd; ++it)

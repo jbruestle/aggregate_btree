@@ -20,18 +20,16 @@
 
 #include <string>
 #include <stdio.h>
+#include <stdexcept>
 
 // Makes printing to strings easy
 std::string printstring(const char* format, ...);
 
 // Exception class for io abstraction
-class io_exception
+class io_exception : public std::runtime_error
 {
 public:
-	io_exception(const std::string& message) : m_message(message) {}
-	const std::string& message() const { return m_message; }
-private:
-	std::string m_message;
+        io_exception(const std::string& message) : std::runtime_error(message) {}
 };
 
 class readable

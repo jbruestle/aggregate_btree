@@ -1,5 +1,5 @@
 /*
-    Aggregate btree implementation
+    Aggregate btree_base implementation
     Copyright (C) 2012 Jeremy Bruestle
 
     This program is free software: you can redistribute it and/or modify
@@ -15,8 +15,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef __btree_h__
-#define __btree_h__
+#ifndef __btree_base_h__
+#define __btree_base_h__
 
 #include "bnode.h"
 #include "bnode_ptr.h"
@@ -25,8 +25,10 @@
 #include "biter.h"
 #include <boost/iterator/iterator_facade.hpp>
 
+namespace btree_impl {
+
 template<class Policy>
-class btree
+class btree_base
 {
 	typedef bnode<Policy> node_t;
 	typedef typename apply_policy<Policy>::ptr_t ptr_t;
@@ -40,13 +42,13 @@ public:
 	typedef std::pair<key_type, data_t> value_type;
 	typedef size_t size_type;
 	
-	btree(cache_ptr_t cache)
+	btree_base(cache_ptr_t cache)
 		: m_cache(cache)
 		, m_height(0)
 		, m_size(0)
 	{}
 
-	btree(cache_ptr_t cache, const std::string& name)
+	btree_base(cache_ptr_t cache, const std::string& name)
 		: m_cache(cache)
 		, m_height(0)
 		, m_size(0)
@@ -54,14 +56,14 @@ public:
 		m_cache->get_root(name, m_root, m_height, m_size);
 	}
 
-	btree(const btree& rhs)
+	btree_base(const btree_base& rhs)
 		: m_cache(rhs.m_cache)
 		, m_root(rhs.m_root)
 		, m_height(rhs.m_height)
 		, m_size(rhs.m_size)
 	{}
 
-	btree& operator=(const btree& rhs)
+	btree_base& operator=(const btree_base& rhs)
 	{
 		m_cache = rhs.m_cache;
 		m_root = rhs.m_root;
@@ -150,19 +152,20 @@ public:
 		return true;	
 	}
 	
+private:
+	class mutable_iterator;
 
-	class iterator;
-
+public:
 	class const_iterator : public boost::iterator_facade<
 		const_iterator,
 		const value_type,
 		boost::bidirectional_traversal_tag>
 	{
 		friend class boost::iterator_core_access;
-		friend class btree;
-		friend class iterator;
+		friend class btree_base;
+		friend class mutable_iterator;
 
-		const_iterator(btree& self) 
+		const_iterator(const btree_base& self) 
 			: m_self(&self)
 			, m_state(self.m_root, self.m_height) 
 		{}
@@ -172,7 +175,7 @@ public:
 			: m_self(rhs.m_self)
 			, m_state(rhs.m_state)
 		{}
-		const_iterator(const iterator& rhs)
+		const_iterator(const mutable_iterator& rhs)
 			: m_self(rhs.m_iterator.m_self)
 			, m_state(rhs.m_iterator.m_state)
 		{}
@@ -183,19 +186,21 @@ public:
 			m_state = rhs.m_state;
 			return *this;
 		}
-		const_iterator& operator=(const iterator& rhs)
+		const_iterator& operator=(const mutable_iterator& rhs)
 		{
 			m_self = rhs.m_iterator.m_self;
 			m_state = rhs.m_iterator.m_state;
 			return *this;
 		}
 	private:
-		btree* m_self;
+		const btree_base* m_self;
 		mutable biter<Policy> m_state;
 		void increment() { maybe_update(); m_state.increment(); }
 		void decrement() { maybe_update(); m_state.decrement(); }
 		bool equal(const_iterator const& other) const { 
 			if (m_self != other.m_self) return false;
+			if (m_state.is_end() || other.m_state.is_end())
+				return (m_state.is_end() && other.m_state.is_end());
 			return m_state.get_key() == other.m_state.get_key();
 		}
 		const value_type& dereference() const { maybe_update(); return m_state.get_pair(); }
@@ -212,8 +217,8 @@ private:
 	class data_proxy
 	{
 		friend class pair_proxy;
-		friend class btree;
-		data_proxy(btree& tree, const key_type& key, const mapped_type& data)
+		friend class btree_base;
+		data_proxy(btree_base& tree, const key_type& key, const mapped_type& data)
 			: m_tree(tree)
 			, m_key(key)
 			, m_data(data)
@@ -222,15 +227,15 @@ private:
 		operator data_t() { return m_data; }
 		data_proxy& operator=(const data_t& rhs) { m_tree.set(m_key, rhs); }
 	private:
-		btree& m_tree;
+		btree_base& m_tree;
 		key_type m_key;
 		mapped_type m_data;
 	};
 
 	class pair_proxy
 	{
-		friend class iterator;
-		pair_proxy(btree& tree, const key_type& key, const mapped_type& data)
+		friend class mutable_iterator;
+		pair_proxy(btree_base& tree, const key_type& key, const mapped_type& data)
 			: second(tree, key, data)
 			, first(second.m_key)
 		{}
@@ -239,20 +244,21 @@ private:
 		data_proxy second;
 		const key_type& first;
 	};
-public:
-	class iterator : public boost::iterator_facade<
-		iterator,
+private:
+	class mutable_iterator : public boost::iterator_facade<
+		mutable_iterator,
 		value_type,
 		boost::bidirectional_traversal_tag>
 	{
 		friend class boost::iterator_core_access;
-		friend class btree;
+		friend class btree_base;
 		friend class const_iterator;
-		iterator(const btree& self) : m_iterator(self) {}
+		mutable_iterator(btree_base& self) : m_iterator(self) 
+		{}
 	public:
-		iterator() {}
-		iterator(const iterator& rhs) : m_iterator(rhs.m_iterator) {}
-		iterator& operator=(const iterator& rhs) 
+		mutable_iterator() {}
+		mutable_iterator(const mutable_iterator& rhs) : m_iterator(rhs.m_iterator) {}
+		mutable_iterator& operator=(const mutable_iterator& rhs) 
 		{
 			m_iterator = rhs.m_iterator;
 			return *this;
@@ -260,7 +266,7 @@ public:
 		pair_proxy operator->() const
 		{
 			return pair_proxy(
-				*m_iterator.m_self, 
+				const_cast<btree_base&>(*m_iterator.m_self), 
 				m_iterator.m_state.get_key(),
 				m_iterator.m_state.get_value()
 			);
@@ -269,12 +275,13 @@ public:
 		const_iterator m_iterator;
 		void increment() { m_iterator++; }
 		void decrement() { m_iterator--; }
-		bool equal(iterator const& other) const { return m_iterator == other.m_iterator; }
+		bool equal(mutable_iterator const& other) const { return m_iterator == other.m_iterator; }
 	};
 
-
-	friend class iterator;
+	friend class mutable_iterator;
 	friend class const_iterator;
+public:
+	typedef mutable_iterator iterator;
 
 	class always_update
 	{
@@ -391,7 +398,7 @@ public:
 		return data_proxy(*this, k, r.m_state.get_value());	
 	}
 
-	void swap(btree& other)
+	void swap(btree_base& other)
 	{
 		std::swap(m_cache, other.m_cache);		
 		std::swap(m_root, other.m_root);		
@@ -526,15 +533,65 @@ public:
 	Compare less;
 };
 
-template<class Key, class Value, class Aggregate = plus_equal<Value>, class Compare = std::less<Key> >
-class memory_btree : public btree<memory_policy<Key, Value, Aggregate, Compare> >
+template<class BasePolicy, class File>
+class disk_policy
 {
-	typedef memory_policy<Key, Value, Aggregate, Compare> policy_t;
-	typedef typename apply_policy<policy_t>::cache_ptr_t cache_ptr_t;
+public:
+	static const bool use_cache = true;
+	static const size_t min_size = BasePolicy::node_size/2;
+	static const size_t max_size = (BasePolicy::node_size/2)*2;
+	typedef typename BasePolicy::key_type key_t;
+	typedef typename BasePolicy::mapped_type value_t;
+	typedef File store_t;
+	disk_policy(const BasePolicy& policy) : m_policy(policy) {}
+	bool less(const key_t& a, const key_t& b) const { return m_policy.less(a,b); }
+	void aggregate(value_t& out, const value_t& in) const { return m_policy.aggregate(out, in); }
+	void serialize(writable& out, const key_t& k, const value_t& v) const { return m_policy.serialize(out, k, v); }
+	void deserialize(readable& in, key_t& k, value_t& v) const { return m_policy.deserialize(in, k, v); }
+private:
+	BasePolicy m_policy;
+};
+
+}
+
+template<class Key, class Value, class Aggregate = btree_impl::plus_equal<Value>, class Compare = std::less<Key> >
+class memory_btree : public btree_impl::btree_base<btree_impl::memory_policy<Key, Value, Aggregate, Compare> >
+{
+	typedef btree_impl::memory_policy<Key, Value, Aggregate, Compare> policy_t;
+	typedef typename btree_impl::apply_policy<policy_t>::cache_ptr_t cache_ptr_t;
+	typedef btree_impl::btree_base<policy_t> base_t;
+	typedef btree_impl::bcache_nop<policy_t> cache_t;
 public:
 	memory_btree(const Aggregate& aggregate = Aggregate(), const Compare& less = Compare())
-		: btree<policy_t>(cache_ptr_t(new bcache_nop<policy_t>(policy_t(aggregate, less)))) {}
-	memory_btree(const memory_btree& rhs) : btree<policy_t>(rhs) {}
+		: base_t(cache_ptr_t(new cache_t(policy_t(aggregate, less)))) {}
+	memory_btree(const memory_btree& rhs) : base_t(rhs) {}
+};
+
+
+template<class BasePolicy, class File = file_bstore>
+class disk_btree : public btree_impl::btree_base<btree_impl::disk_policy<BasePolicy, File> >
+{
+	typedef btree_impl::disk_policy<BasePolicy, File> policy_t;
+	typedef btree_impl::bcache<policy_t> cache_t;
+	typedef btree_impl::btree_base<policy_t> base_t;
+	typedef typename btree_impl::apply_policy<policy_t>::cache_ptr_t cache_ptr_t;
+
+public:
+	class store_type : public File
+	{
+		friend class disk_btree;
+	public:
+		store_type(size_t max_unwritten, size_t max_lru, const BasePolicy& policy = BasePolicy())
+			: File() 
+			, m_cache(*this, max_unwritten, max_lru, policy_t(policy))
+		{}
+	private:
+		cache_t m_cache;
+	};			
+
+	disk_btree(store_type& store) : base_t(&store.m_cache) {}
+	disk_btree(store_type& store, const std::string& name) : base_t(&store.m_cache, name) {}
+	disk_btree(const disk_btree& rhs) : base_t(rhs) {}
 };
 
 #endif

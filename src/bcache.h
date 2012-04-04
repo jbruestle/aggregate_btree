@@ -25,6 +25,8 @@
 
 #include "bdecl.h"
 
+namespace btree_impl {
+
 template<class Policy>
 class bcache
 {
@@ -373,4 +375,5 @@ private:
 	Policy m_policy;
 };
 
+}
 #endif

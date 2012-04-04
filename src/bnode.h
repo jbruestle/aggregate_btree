@@ -25,6 +25,8 @@
 #include "bdecl.h"
 #include "serial.h"
 
+namespace btree_impl {
+
 static size_t g_node_count = 0;
 
 template<class Policy>
@@ -83,8 +85,7 @@ public:
 		::serialize(out, size());
 		for(size_t i = 0; i < size(); i++)
 		{
-			m_policy.serialize(out, key(i));
-			m_policy.serialize(out, val(i));
+			m_policy.serialize(out, key(i), val(i));
 			if (m_height != 0)
 			{
 				off_t child_loc = ptr(i).get_offset();
@@ -104,8 +105,7 @@ public:
 		{
 			key_t key;
 			value_t val;
-			m_policy.deserialize(in, key);
-			m_policy.deserialize(in, val);
+			m_policy.deserialize(in, key, val);
 			if (m_height != 0)
 			{
 				off_t child_loc;
@@ -546,4 +546,5 @@ private:
 	ptr_t m_ptrs[max_size + 1];  // All my pointers
 };
 
+}
 #endif

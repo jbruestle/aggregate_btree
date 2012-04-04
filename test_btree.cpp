@@ -18,18 +18,15 @@
 #include "serial.h"
 #include "file_bstore.h"
 
-struct int_int_policy
+struct my_policy
 {
-	typedef int key_t;
-	typedef int value_t;
-	typedef file_bstore store_t;
+	typedef int key_type;
+	typedef int mapped_type;
+	static const size_t node_size = 20;
 	bool less(const int& a, const int& b) const { return a < b; }
 	void aggregate(int& out, const int& in) const { out += in; }
-	void serialize(writable& out, const int& a) const { ::serialize(out, a); }
-	void deserialize(readable& in, int& a) const { ::deserialize(in, a); }
-	static const bool use_cache = true;
-	static const size_t min_size = 10;
-	static const size_t max_size = 20;
+	void serialize(writable& out, const int& k, const int& v) const { ::serialize(out, k); ::serialize(out, v);}
+	void deserialize(readable& in, int& k, int& v) const { ::deserialize(in, k); ::deserialize(in, v); }
 };
 
 #define __BTREE_DEBUG
@@ -42,8 +39,9 @@ const size_t k_value_range = 100;
 const size_t k_num_snapshots = 5;
 const bool noisy = false;
 
-typedef btree<int_int_policy> btree_t;
+typedef disk_btree<my_policy> btree_t;
 typedef btree_t::const_iterator biterator_t;
+typedef btree_t::store_type store_t;
 
 typedef std::map<int, int> mtree_t;
 typedef mtree_t::const_iterator miterator_t;
@@ -98,8 +96,8 @@ private:
 class mock_tree
 {
 public:
-	mock_tree(bcache<int_int_policy>* cache, const std::string& name, const mtree_t& mt) 
-		: m_btree(cache, name)
+	mock_tree(store_t& store, const std::string& name, const mtree_t& mt) 
+		: m_btree(store, name)
 		, m_mtree(mt)
 	{}
 
@@ -252,17 +250,16 @@ private:
 	int m_big;
 };
 
-extern size_t g_node_count; 
+extern size_t btree_impl::g_node_count; 
 
 int test_disk()
 {
 	printf("Testing btree\n");
-	printf("Node count = %d\n", (int) g_node_count);
+	printf("Node count = %d\n", (int) btree_impl::g_node_count);
 	system("rm -r /tmp/lame_tree");
-	file_bstore *fbs = new file_bstore();
-	fbs->open("/tmp/lame_tree", true);
-	bcache<int_int_policy>* cache = new bcache<int_int_policy>(*fbs, 10, 20);
-	mock_tree t(cache, "root", mtree_t());
+	store_t* store = new store_t(10, 20);
+	store->open("/tmp/lame_tree", true);
+	mock_tree t(*store, "root", mtree_t());
 	std::vector<mock_tree> snaps;
 	for(size_t i = 0; i < k_num_snapshots; i++)
 		snaps.push_back(t);
@@ -275,18 +272,16 @@ int test_disk()
 			if (i % 3000 == 0)
 			{
 				snaps.clear();
-				printf("Node count = %d\n", (int) g_node_count);
+				printf("Node count = %d\n", (int) btree_impl::g_node_count);
 				printf("Closing trr\n");
 				t.sync("root");
 				mtree_t save = t.get_mtree();
 				t.clear();
-				delete cache;
-				delete fbs;
-				printf("Node count = %d\n", (int) g_node_count);
-				fbs = new file_bstore();
-				fbs->open("/tmp/lame_tree", false);
-				cache = new bcache<int_int_policy>(*fbs, 10, 20);
-				t = mock_tree(cache, "root", save);
+				delete store;
+				printf("Node count = %d\n", (int) btree_impl::g_node_count);
+				store = new store_t(10, 20);
+				store->open("/tmp/lame_tree", false);
+				t = mock_tree(*store, "root", save);
 				for(size_t i = 0; i < k_num_snapshots; i++)
 					snaps.push_back(t);
 			}
@@ -426,7 +421,7 @@ int test_disk()
 		if (!t.validate())
 			exit(1);
 	}
-	printf("Node count = %d\n", (int) g_node_count);
+	printf("Node count = %d\n", (int) btree_impl::g_node_count);
 	snaps.clear();
 	while(t.size() > 0)
 	{
@@ -436,9 +431,8 @@ int test_disk()
 	}
 	t.sync("root");
 	t.clear();
-	delete cache;
-	delete fbs;
-	printf("Node count = %d\n", (int) g_node_count);
+	delete store;
+	printf("Node count = %d\n", (int) btree_impl::g_node_count);
 	assert(true);
 }
 
@@ -455,7 +449,7 @@ void test_in_memory()
 		//tree.update(k, always_update(v));
 	}
 	bt_t tree2 = tree;
-	//tree = tree2;
+	tree = tree2;
 	it_t it = tree.begin();
 	it_t it_end = tree.end();
 	int total = 0;

@@ -23,6 +23,8 @@
 
 #include "bdecl.h"
 
+namespace btree_impl {
+
 template<class Policy>
 class bnode_cache_ptr
 {
@@ -70,4 +72,5 @@ private:
 	proxy_t* m_proxy;
 };
 
+}
 #endif
