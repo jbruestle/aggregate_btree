@@ -468,6 +468,21 @@ public:
 		cur.m_iterator.m_state.accumulate_until(threshold, total, end.m_state);
 	}
 
+	class forever_functor
+	{
+	public:
+		forever_functor() {}
+		bool operator()(const int& total) const { return false; }
+	};
+
+	data_t total(const const_iterator& start, const const_iterator& end)
+	{
+		data_t r = data_t();
+		const_iterator it = start;
+		accumulate_until(it, r, end, forever_functor());
+		return r;
+	}
+
 	void sync(const std::string& name) { assert(m_cache); m_cache->sync(name, m_root, m_height, m_size); }
 
 #ifdef __BTREE_DEBUG

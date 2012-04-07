@@ -441,6 +441,7 @@ void test_in_memory()
 	typedef memory_btree<int, int> bt_t;
 	typedef bt_t::iterator it_t;
 	bt_t tree;
+	it_t it, it_end = tree.end();
 	for(size_t i = 0; i < 100; i++)
 	{
 		int k = random() % 1000;
@@ -450,10 +451,7 @@ void test_in_memory()
 	}
 	bt_t tree2 = tree;
 	tree = tree2;
-	it_t it = tree.begin();
-	it_t it_end = tree.end();
-	int total = 0;
-	tree.accumulate_until(it, total, it_end, forever_functor());
+	int total = tree.total(tree.begin(), tree.end());
 	printf("Total = %d\n", total);
 	it = tree.begin();
 	int my_total = 0;
@@ -464,12 +462,12 @@ void test_in_memory()
 	}
 	tree.clear();
 	printf("Computed total = %d\n", my_total);
-	assert(my_total = total);
+	assert(my_total == total);
 	total = 0;
 	it = tree2.begin();
 	tree2.accumulate_until(it, total, tree2.end(), forever_functor());
 	printf("Saved computed total = %d\n", my_total);
-	assert(my_total = total);
+	assert(my_total == total);
 	tree2 = tree;
 	it = tree2.begin();
 	total = 0;
