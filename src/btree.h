@@ -23,6 +23,7 @@
 #include "bnode_proxy.h"
 #include "bcache.h"
 #include "biter.h"
+#include "file_bstore.h"
 #include <boost/iterator/iterator_facade.hpp>
 
 namespace btree_impl {
@@ -225,7 +226,7 @@ private:
 		{}
 	public:
 		operator data_t() { return m_data; }
-		data_proxy& operator=(const data_t& rhs) { m_tree.set(m_key, rhs); }
+		data_proxy& operator=(const data_t& rhs) { m_tree.set(m_key, rhs); return *this; }
 	private:
 		btree_base& m_tree;
 		key_type m_key;

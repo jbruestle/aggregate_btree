@@ -24,6 +24,7 @@
 #include <boost/intrusive/list.hpp>
 
 #include "bdecl.h"
+#include "vector_io.h"
 
 namespace btree_impl {
 
@@ -368,7 +369,7 @@ public:
 	typedef bnode<Policy> node_t;
 	typedef typename apply_policy<Policy>::ptr_t ptr_t;
 	ptr_t new_node(node_t* node) { return ptr_t(node); }
-	off_t get_oldest(const ptr_t& ptr) { std::numeric_limits<off_t>::max(); }
+	off_t get_oldest(const ptr_t& ptr) { return std::numeric_limits<off_t>::max(); }
 	bool load_below(ptr_t& ptr, off_t off) { return true; }
 	Policy& get_policy() { return m_policy; }
 private:

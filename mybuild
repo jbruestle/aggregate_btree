@@ -20,7 +20,7 @@ def compile(cppfile, more_flags = []):
 	return objfile
 
 def compile_dir(thedir, more_flags = []):
-	return [compile(thedir + '/' + x, more_flags) for x in os.listdir(thedir) if x.endswith('.cpp')]
+	return [compile(thedir + '/' + x, more_flags) for x in os.listdir(thedir) if x.endswith('.cpp') and x != "pywrap.cpp"]
 
 def link_objs(out, objs):
 	run('g++', '-o', out, *(objs + ldflags))
