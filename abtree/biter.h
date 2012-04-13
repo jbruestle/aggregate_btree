@@ -18,7 +18,7 @@
 #ifndef __biter_h__
 #define __biter_h__
 
-#include "bdecl.h"
+#include "abtree/bdecl.h"
 
 namespace btree_impl {
 

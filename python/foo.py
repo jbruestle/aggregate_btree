@@ -5,8 +5,8 @@ import msgpack
 
 store = btree_c.Store("/tmp/wtf", True)
 tree = btree.Tree(store, "root", lambda a,b: a + b)
-tree['hello'] = 3;
-tree['world'] = 5;:
+tree['hello'] = 3
+tree['world'] = 5
 tree2 = tree  # Shallow copy
 tree3 = tree.copy() # COW copy
 tree['foo'] = 6

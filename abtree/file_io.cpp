@@ -15,7 +15,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "file_io.h"
+#include "abtree/file_io.h"
 
 file_reader::file_reader(FILE* file) 
 	: m_user_file(true)

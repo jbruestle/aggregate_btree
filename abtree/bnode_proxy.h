@@ -22,7 +22,7 @@
 #include <boost/thread.hpp>
 #include <boost/intrusive/list.hpp>
 
-#include "bdecl.h"
+#include "abtree/bdecl.h"
 
 namespace btree_impl {
 

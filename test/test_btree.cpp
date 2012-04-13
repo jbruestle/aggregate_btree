@@ -15,8 +15,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "serial.h"
-#include "file_bstore.h"
+#define __BTREE_DEBUG
+#include "abtree.h"
+#include <map>
 
 struct my_policy
 {
@@ -29,9 +30,6 @@ struct my_policy
 	void deserialize(readable& in, int& k, int& v) const { ::deserialize(in, k); ::deserialize(in, v); }
 };
 
-#define __BTREE_DEBUG
-#include "btree.h"
-#include <map>
 
 const size_t k_op_count = 10000;
 const size_t k_key_range = 1000;

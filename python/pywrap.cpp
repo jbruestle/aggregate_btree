@@ -3,9 +3,7 @@
 #include <boost/shared_ptr.hpp>
 using namespace boost::python;
 
-#include "io.h"
-#include "serial.h"
-#include "btree.h"
+#include <abtree.h>
 
 class pytree_policy
 {

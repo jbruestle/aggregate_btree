@@ -21,7 +21,7 @@
 #include <assert.h>
 #include <pthread.h>
 
-#include "bdecl.h"
+#include "abtree/bdecl.h"
 
 namespace btree_impl {
 

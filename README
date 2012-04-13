@@ -1,5 +1,29 @@
 
-This project is an aggregate btee implementation.  It is copyrighted by Jeremy Bruestle (2012), and is being released under the GNU Affero General Public License version 3.
+This project is an aggregate btee implementation.  
+It is copyrighted by Jeremy Bruestle (2012), and is being released under the GNU Affero General Public License version 3.
 
-Right now, there is no documenetation and the build system needs to be replaced with GNU autoconf. 
+It consists of two parts, a c++ abtree library, and a set of python wrappers
+
+To build and install the c++ library, do the following:
+
+autoreconf -fi
+mkdir build && cd build
+../configure
+make
+sudo make install
+cd ..
+
+To build the python bindings, first build and install the c++ libs, followed by
+cd python
+python2.7 ./setup.py build_ext
+python2.7 ./setup.py install
+
+If you are using macports like me, the proper configure line is:
+
+CXXFLAGS=-I/opt/local/include LDFLAGS=-L/opt/local/lib ../configure
+
+and the proper pythong build_ext line is:
+
+python2.7 ./setup.py build_ext -I /opt/local/include -L /opt/local/lib
+
 

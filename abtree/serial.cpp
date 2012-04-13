@@ -16,8 +16,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "serial.h"
 #include <assert.h>
+#include "abtree/serial.h"
 
 template<class IntType>
 static void write_variable(writable& dest, IntType x)

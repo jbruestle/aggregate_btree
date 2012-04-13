@@ -18,9 +18,9 @@
 #ifndef __serial_h__
 #define __serial_h__
 
-#include "io.h"
 #include <string>
 #include <vector>
+#include "abtree/io.h"
 
 void serialize(writable& dest, int x);
 void deserialize(readable& src, int& x);

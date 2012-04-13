@@ -22,8 +22,8 @@
 #include <stdio.h>
 #include <boost/thread/mutex.hpp>
 
-#include "bdecl.h"
-#include "serial.h"
+#include "abtree/bdecl.h"
+#include "abtree/serial.h"
 
 namespace btree_impl {
 

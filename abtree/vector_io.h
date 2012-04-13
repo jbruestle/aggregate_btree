@@ -18,8 +18,8 @@
 #ifndef __vector_io_h__
 #define __vector_io_h__
 
-#include "io.h"
 #include <vector>
+#include "abtree/io.h"
 
 class vector_writer : public writable
 {

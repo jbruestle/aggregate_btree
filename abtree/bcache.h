@@ -23,8 +23,8 @@
 #include <boost/unordered_map.hpp>
 #include <boost/intrusive/list.hpp>
 
-#include "bdecl.h"
-#include "vector_io.h"
+#include "abtree/bdecl.h"
+#include "abtree/vector_io.h"
 
 namespace btree_impl {
 

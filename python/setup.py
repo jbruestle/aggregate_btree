@@ -3,15 +3,9 @@ from distutils.core import setup, Extension
 
 btree_ext = Extension('btree_c', 
 	sources = [
-		'src/file_bstore.cpp',
-		'src/file_io.cpp',
-		'src/io.cpp',
-		'src/serial.cpp',
-		'src/pywrap.cpp',
+		'pywrap.cpp',
 	],
-	include_dirs = ['/opt/local/include'],
-	library_dirs=['/opt/local/lib'],
-	libraries=['boost_thread-mt', 'boost_python-mt']
+	libraries=['abtree', 'boost_thread-mt', 'boost_python-mt']
 )
 
 setup(

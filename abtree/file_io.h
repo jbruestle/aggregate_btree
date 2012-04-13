@@ -19,7 +19,7 @@
 #ifndef __file_io_h__
 #define __file_io_h__
 
-#include "io.h"
+#include "abtree/io.h"
 
 class file_reader : public read_wrapper
 {
