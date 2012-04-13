@@ -17,7 +17,11 @@
 
 #define __BTREE_DEBUG
 #include "abtree.h"
+#include "gtest/gtest.h"
 #include <map>
+
+namespace side_by_side
+{
 
 struct my_policy
 {
@@ -29,7 +33,6 @@ struct my_policy
 	void serialize(writable& out, const int& k, const int& v) const { ::serialize(out, k); ::serialize(out, v);}
 	void deserialize(readable& in, int& k, int& v) const { ::deserialize(in, k); ::deserialize(in, v); }
 };
-
 
 const size_t k_op_count = 10000;
 const size_t k_key_range = 1000;
@@ -135,7 +138,8 @@ public:
 			if (mr && !exists)
 				m_mtree.erase(it);
 		}
-		assert(br == mr);
+		// Would like to use ASSERT_EQ, but only allowed in void functions for some reason...
+		br == mr;
 		return br;
 	}
 
@@ -143,6 +147,7 @@ public:
 	size_t size() const { 
 		size_t s1 = m_mtree.size();
 		size_t s2 = m_btree.size();
+		// Would like to use ASSERT_EQ, but only allowed in void functions for some reason...
 		assert(s1 == s2);
 		return s1; 
 	}
@@ -248,12 +253,14 @@ private:
 	int m_big;
 };
 
-extern size_t btree_impl::g_node_count; 
+};  // End namespace
 
-int test_disk()
+using namespace side_by_side;
+
+TEST(side_by_side, disk_tree)
 {
 	printf("Testing btree\n");
-	printf("Node count = %d\n", (int) btree_impl::g_node_count);
+	ASSERT_EQ(btree_impl::g_node_count, size_t(0));
 	system("rm -r /tmp/lame_tree");
 	store_t* store = new store_t(10, 20);
 	store->open("/tmp/lame_tree", true);
@@ -270,13 +277,13 @@ int test_disk()
 			if (i % 3000 == 0)
 			{
 				snaps.clear();
-				printf("Node count = %d\n", (int) btree_impl::g_node_count);
+				ASSERT_LT(btree_impl::g_node_count, size_t(30));
 				printf("Closing trr\n");
 				t.sync("root");
 				mtree_t save = t.get_mtree();
 				t.clear();
 				delete store;
-				printf("Node count = %d\n", (int) btree_impl::g_node_count);
+				ASSERT_EQ(btree_impl::g_node_count, size_t(0));
 				store = new store_t(10, 20);
 				store->open("/tmp/lame_tree", false);
 				t = mock_tree(*store, "root", save);
@@ -419,7 +426,7 @@ int test_disk()
 		if (!t.validate())
 			exit(1);
 	}
-	printf("Node count = %d\n", (int) btree_impl::g_node_count);
+	ASSERT_LT(btree_impl::g_node_count, size_t(30));
 	snaps.clear();
 	while(t.size() > 0)
 	{
@@ -430,52 +437,11 @@ int test_disk()
 	t.sync("root");
 	t.clear();
 	delete store;
-	printf("Node count = %d\n", (int) btree_impl::g_node_count);
-	assert(true);
+	ASSERT_EQ(btree_impl::g_node_count, size_t(0));
 }
 
-void test_in_memory()
+namespace btree_impl
 {
-	typedef memory_btree<int, int> bt_t;
-	typedef bt_t::iterator it_t;
-	bt_t tree;
-	it_t it, it_end = tree.end();
-	for(size_t i = 0; i < 100; i++)
-	{
-		int k = random() % 1000;
-		int v = random() % 100;
-		tree[k] = v;
-		//tree.update(k, always_update(v));
-	}
-	bt_t tree2 = tree;
-	tree = tree2;
-	int total = tree.total(tree.begin(), tree.end());
-	printf("Total = %d\n", total);
-	it = tree.begin();
-	int my_total = 0;
-	for(; it != it_end; ++it)
-	{
-		//printf("(%d, %d)\n", it->first, it->second);
-		my_total += it->second;
-	}
-	tree.clear();
-	printf("Computed total = %d\n", my_total);
-	assert(my_total == total);
-	total = 0;
-	it = tree2.begin();
-	tree2.accumulate_until(it, total, tree2.end(), forever_functor());
-	printf("Saved computed total = %d\n", my_total);
-	assert(my_total == total);
-	tree2 = tree;
-	it = tree2.begin();
-	total = 0;
-	tree2.accumulate_until(it, total, tree2.end(), forever_functor());
-	printf("Saved computed total = %d\n", total);
-	assert(total == 0);
-}
+	size_t g_node_count = 0;
+};
 
-int main()
-{
-	test_in_memory();
-	test_disk();
-}

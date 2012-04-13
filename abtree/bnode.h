@@ -27,7 +27,9 @@
 
 namespace btree_impl {
 
-static size_t g_node_count = 0;
+#ifdef __BTREE_DEBUG
+extern size_t g_node_count;
+#endif
 
 template<class Policy>
 class bnode 
@@ -57,7 +59,9 @@ public:
 		, m_total(v)       // Total is our one entry
 		, m_size(1)
 	{
+#ifdef __BTREE_DEBUG
 		g_node_count++;
+#endif
 		m_keys[0] = k;
 		m_values[0] = v;
 	}
@@ -70,13 +74,17 @@ public:
 		, m_size(2)
 	{
 		m_policy.aggregate(m_total, n2->total());
+#ifdef __BTREE_DEBUG
 		g_node_count++;
+#endif
 		assign(0, n1);
 		assign(1, n2);
 	}
 	
-	~bnode() { 
+	~bnode() {
+#ifdef __BTREE_DEBUG
 		g_node_count--; 
+#endif
 	}
 
 	void serialize(writable& out) const
@@ -359,7 +367,9 @@ public:
 		, m_height(height)
 		, m_size(0)
 	{
+#ifdef __BTREE_DEBUG 
 		g_node_count++;
+#endif
 	}
 
 private:

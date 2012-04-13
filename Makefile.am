@@ -22,8 +22,12 @@ nobase_abtree_include_HEADERS = \
 		abtree/serial.h \
 		abtree/vector_io.h 
 
-AM_CPPFLAGS = -I$(top_srcdir)/src
+AM_CPPFLAGS = -I$(top_srcdir)/gtest-1.5.0/include -I$(top_srcdir)/gtest-1.5.0
 bin_PROGRAMS = test_btree
 test_btree_LDADD = libabtree.la -lm -lboost_thread-mt
 test_btree_SOURCES = \
-		test/test_btree.cpp
+		gtest-1.5.0/src/gtest-all.cc \
+		test/side_by_side.cpp \
+		test/basic_memory.cpp \
+		test/test_main.cpp
+		
