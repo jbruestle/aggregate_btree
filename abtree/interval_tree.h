@@ -31,7 +31,6 @@ private:
 	position_type get_end(const value_type& v) const { return m_interval_functor(v).first; }
 
 	struct augmented_key;
-	struct augmented_value;
 
 	struct augmented_key_cmp
 	{
@@ -54,12 +53,11 @@ private:
 		base_value_compare m_val_cmp;
 	};
 
-	struct augmented_value_aggregate
+	struct position_aggregate
 	{
-		void operator()(augmented_value& out, const augmented_value& in) const
+		void operator()(position_type& out, const position_type& in) const
 		{
-			out.max_end = std::max(out.max_end, in.max_end);
-			out.value = NULL;
+			out = std::max(out, in);
 		}
 	};
 
@@ -83,27 +81,7 @@ private:
 		const value_type* value;
 	};
 
-	struct augmented_value
-	{
-		augmented_value() 
-			: max_end()
-			, value(NULL)
-		{}
-
-		augmented_value(const position_type& _end) 
-			: max_end(_end)
-			, value(NULL)
-		{}
-
-		augmented_value(const position_type& _end, const value_type* rhs)
-			: max_end(_end)
-			, value(rhs)
-		{}
-		position_type max_end;
-		const value_type* value;
-	};
-
-	typedef abtree<augmented_key, augmented_value, augmented_value_aggregate, augmented_key_cmp> map_t;
+	typedef abtree<augmented_key, position_type, position_aggregate, augmented_key_cmp> map_t;
 public:
 	class const_iterator : public boost::iterator_facade<
 		const_iterator,
@@ -122,7 +100,7 @@ public:
 		void increment() { m_it++; }
 		void decrement() { m_it--; }
 		bool equal(const_iterator const& other) const { return m_it == other.m_it; }
-                const value_type& dereference() const { return *m_it->second.value; }
+                const value_type& dereference() const { return *m_it->first.value; }
 
 		inner_iterator m_it;
 	};	
@@ -130,7 +108,7 @@ public:
 	struct  has_overlap_functor
 	{
 		has_overlap_functor(const position_type& start) : m_start(start) {}
-		bool operator()(const augmented_value& end) const { return m_start < end.max_end; }
+		bool operator()(const position_type& end) const { return m_start < end; }
 		position_type m_start;
 	};
 
@@ -169,7 +147,7 @@ public:
 		void skip_ahead()
 		{
 			// Go forward until we hit the first 'overlapping' element
-			augmented_value pos = search_start;
+			position_type pos = search_start;
 			map->accumulate_until(cur, pos, map->end(), has_overlap_functor(search_start));
 			// If we are no longer in overlap range, go to end
 			if (cur != map->end() && !(cur->first.start < search_end)) 
@@ -202,7 +180,7 @@ public:
 	};
 
 	interval_tree(const base_value_compare& vc = base_value_compare())
-		: m_map(augmented_value_aggregate(), augmented_key_cmp(vc))
+		: m_map(position_aggregate(), augmented_key_cmp(vc))
 	{}
 
 	typedef std::pair<overlap_iterator, overlap_iterator> range_t;
@@ -211,9 +189,7 @@ public:
 		assert(!(get_end(val) < get_start(val)));
 		value_type* copy = new value_type(val);
 		m_map.insert(std::make_pair(
-			augmented_key(get_start(*copy), copy), 
-			augmented_value(get_end(*copy), copy))
-		);
+			augmented_key(get_start(*copy), copy), get_end(*copy)));
 	}
 
 	void erase(const value_type& val)
