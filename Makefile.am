@@ -8,7 +8,9 @@ libabtree_la_SOURCES = \
 libabtree_la_LIBADD = -lm -lboost_thread-mt
 abtree_includedir=$(includedir)
 nobase_abtree_include_HEADERS = \
-		abtree.h \
+		abtree/disk_abtree.h \
+		abtree/abtree.h \
+		abtree/interval_tree.h \
 		abtree/bcache.h \
 		abtree/bdecl.h \
 		abtree/biter.h \
@@ -29,5 +31,6 @@ test_btree_SOURCES = \
 		gtest-1.5.0/src/gtest-all.cc \
 		test/side_by_side.cpp \
 		test/basic_memory.cpp \
+		test/interval_tree.cpp \
 		test/test_main.cpp
 		

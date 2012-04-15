@@ -101,7 +101,8 @@ private:
 		while(it != end)
 		{
 			value_t new_val = start;
-			new_val += node->val(it);
+			//new_val += node->val(it);
+			node->get_policy().aggregate(new_val, node->val(it));
 			if (threshold(new_val))
 				break;
 			start = new_val;
@@ -201,10 +202,12 @@ public:
 
 	void set_find(const key_t& k)
 	{
-		set_lower_bound(k);
-		if (m_pair.first == k)
+		if (m_height == 0)
 			return;
-		set_end();
+		set_lower_bound(k);
+		if (is_end()) return;
+		if (m_nodes[0]->get_policy().less(k, m_pair.first))
+			set_end();
 	}
 
 	void set_lower_bound(const key_t& k)

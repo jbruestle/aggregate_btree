@@ -16,7 +16,7 @@
 */
 
 #define __BTREE_DEBUG
-#include "abtree.h"
+#include "abtree/disk_abtree.h"
 #include "gtest/gtest.h"
 #include <map>
 
@@ -40,7 +40,7 @@ const size_t k_value_range = 100;
 const size_t k_num_snapshots = 5;
 const bool noisy = false;
 
-typedef disk_btree<my_policy> btree_t;
+typedef disk_abtree<my_policy> btree_t;
 typedef btree_t::const_iterator biterator_t;
 typedef btree_t::store_type store_t;
 

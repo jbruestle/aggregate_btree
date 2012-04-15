@@ -202,7 +202,11 @@ public:
 			if (m_self != other.m_self) return false;
 			if (m_state.is_end() || other.m_state.is_end())
 				return (m_state.is_end() && other.m_state.is_end());
-			return m_state.get_key() == other.m_state.get_key();
+			if (m_self->m_cache->get_policy().less(m_state.get_key(), other.m_state.get_key()))
+				return false;
+			if (m_self->m_cache->get_policy().less(other.m_state.get_key(), m_state.get_key()))
+				return false;
+			return true;
 		}
 		const value_type& dereference() const { maybe_update(); return m_state.get_pair(); }
 		void maybe_update() const { 
@@ -347,7 +351,7 @@ public:
 
 	std::pair<iterator, bool> insert(const value_type& pair)
 	{
-		bool inserted = update(pair.first, only_insert(pair.value));
+		bool inserted = update(pair.first, only_insert(pair.second));
 		iterator it = find(pair.first);
 		return std::make_pair(it, inserted);
 	}
@@ -369,6 +373,11 @@ public:
 	}
 
 	void erase(iterator it)
+	{
+		update(it->first, always_erase());
+	}
+
+	void erase(const_iterator it)
 	{
 		update(it->first, always_erase());
 	}
@@ -458,13 +467,13 @@ public:
 	// That is, we stop right before threshold becomes true
 	// In reality, the whole thing is done in log(n) time through fancy tricks
 	template<class Functor>
-	void accumulate_until(const_iterator& cur, data_t& total, const const_iterator& end, const Functor& threshold)
+	void accumulate_until(const_iterator& cur, data_t& total, const const_iterator& end, const Functor& threshold) const
 	{
 		cur.m_state.accumulate_until(threshold, total, end.m_state);
 	}
 
 	template<class Functor>
-	void accumulate_until(iterator& cur, data_t& total, const const_iterator& end, const Functor& threshold)
+	void accumulate_until(iterator& cur, data_t& total, const const_iterator& end, const Functor& threshold) const
 	{
 		cur.m_iterator.m_state.accumulate_until(threshold, total, end.m_state);
 	}

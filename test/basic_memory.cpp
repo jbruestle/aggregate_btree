@@ -15,12 +15,12 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "abtree.h"
+#include "abtree/abtree.h"
 #include "gtest/gtest.h"
 
 TEST(memory_btree, basic)
 {
-	typedef memory_btree<int, int> bt_t;
+	typedef abtree<int, int> bt_t;
 	typedef bt_t::iterator it_t;
 	bt_t tree;
 	it_t it, it_end = tree.end();
