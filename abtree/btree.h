@@ -40,7 +40,7 @@ class btree_base
 public:
 	typedef typename Policy::key_t key_type;
 	typedef typename Policy::value_t mapped_type;
-	typedef std::pair<key_type, data_t> value_type;
+	typedef std::pair<const key_type, data_t> value_type;
 	typedef size_t size_type;
 	
 	btree_base(cache_ptr_t cache)
@@ -223,6 +223,12 @@ private:
 	{
 		friend class pair_proxy;
 		friend class btree_base;
+
+		data_proxy(btree_base& tree, const key_type& key)
+			: m_tree(tree)
+			, m_key(key)
+		{}
+
 		data_proxy(btree_base& tree, const key_type& key, const mapped_type& data)
 			: m_tree(tree)
 			, m_key(key)
@@ -405,7 +411,10 @@ public:
 	data_proxy operator[](const key_type& k)
 	{
 		const_iterator r = find(k); 
-		return data_proxy(*this, k, r.m_state.get_value());	
+		if (r == end())
+			return data_proxy(*this, k);	
+		else 
+			return data_proxy(*this, k, r.m_state.get_value());	
 	}
 
 	void swap(btree_base& other)

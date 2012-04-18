@@ -28,12 +28,13 @@ class biter
 public:
 	typedef typename Policy::key_t key_t;
 	typedef typename Policy::value_t value_t;
+	typedef typename std::pair<const key_t, value_t> pair_t;
 	typedef typename apply_policy<Policy>::ptr_t ptr_t;
 
 	// Construct a totally empty iterator
 	biter()
 		: m_height(0)
-		, m_pair()
+		, m_pair(NULL)
 	{}
 
 	// Construct an empty iterator to a tree snapshot
@@ -41,7 +42,7 @@ public:
 		: m_height(height)
 		, m_nodes(height)
 		, m_iters(height)
-		, m_pair()
+		, m_pair(NULL)
 	{
 		if (m_height)
 		{
@@ -51,21 +52,28 @@ public:
 		}
 	}
 
-	~biter() { }
+	~biter() { delete m_pair; }
 
 	biter(const biter& rhs)
 		: m_height(rhs.m_height)
 		, m_nodes(rhs.m_nodes)
 		, m_iters(rhs.m_iters)
-		, m_pair(rhs.m_pair)
-	{}
+		, m_pair(NULL)
+	{
+		if (rhs.m_pair != NULL)
+			m_pair = new pair_t(*rhs.m_pair);
+	}
 	
 	void operator=(const biter& rhs)
 	{
 		m_height = rhs.m_height;
 		m_nodes = rhs.m_nodes;
 		m_iters = rhs.m_iters;
-		m_pair = rhs.m_pair;
+		delete m_pair;
+		if (rhs.m_pair == NULL)
+			m_pair = NULL;
+		else
+			m_pair = new pair_t(*rhs.m_pair);
 	}
 
 	bool operator==(const biter& other) const
@@ -115,7 +123,12 @@ public:
 	void accumulate_until(const Functor& threshold, value_t& start, const biter& end)
 	{
 		// Skip things if we are already at the end
-		if (is_end()) return;
+		if (is_end()) 
+		{
+			delete m_pair;
+			m_pair = NULL;
+			return;
+		}
 		// Assert that we are part of the same tree
 		assert(m_nodes[0] == end.m_nodes[0]);
 
@@ -159,8 +172,7 @@ public:
 				walk_until(threshold, start, m_nodes[cur], m_iters[cur], m_nodes[cur]->size());
 			//printf("Post walk: total = %d\n", start);
 		}
-		m_pair.first = m_nodes[m_height-1]->key(m_iters[m_height-1]);
-		m_pair.second= m_nodes[m_height-1]->val(m_iters[m_height-1]);
+		set_pair();
 	}
 
 	// Set this iterator to the tree begin
@@ -173,8 +185,7 @@ public:
 			m_nodes[i+1] = m_nodes[i]->ptr(m_iters[i]);	
 		}
 		m_iters[m_height - 1] = 0;
-		m_pair.first = m_nodes[m_height-1]->key(m_iters[m_height-1]);
-		m_pair.second= m_nodes[m_height-1]->val(m_iters[m_height-1]);
+		set_pair();
 	}
 
 	void set_rbegin()
@@ -186,8 +197,7 @@ public:
 			m_nodes[i+1] = m_nodes[i]->ptr(m_iters[i]);	
 		}
 		m_iters[m_height - 1] = m_nodes[m_height - 1]->size() - 1;
-		m_pair.first = m_nodes[m_height-1]->key(m_iters[m_height-1]);
-		m_pair.second= m_nodes[m_height-1]->val(m_iters[m_height-1]);
+		set_pair();
 	}
 
 	// Set this iterator to the tree end
@@ -198,6 +208,8 @@ public:
 			return;
 		// Set the top of the stack to end
 		m_iters[0] = m_nodes[0]->size();
+		delete m_pair;
+		m_pair = NULL;
 	}
 
 	void set_find(const key_t& k)
@@ -206,7 +218,7 @@ public:
 			return;
 		set_lower_bound(k);
 		if (is_end()) return;
-		if (m_nodes[0]->get_policy().less(k, m_pair.first))
+		if (m_nodes[0]->get_policy().less(k, m_pair->first))
 			set_end();
 	}
 
@@ -272,8 +284,7 @@ public:
 			m_iters[cur] = 0;
 			cur++;
 		}
-		m_pair.first = m_nodes[m_height-1]->key(m_iters[m_height-1]);
-		m_pair.second= m_nodes[m_height-1]->val(m_iters[m_height-1]);
+		set_pair();
 	}
 
 	void decrement()
@@ -304,21 +315,29 @@ public:
 			m_iters[cur]--;
 			cur++;
 		}
-		m_pair.first = m_nodes[m_height-1]->key(m_iters[m_height-1]);
-		m_pair.second= m_nodes[m_height-1]->val(m_iters[m_height-1]);
+		set_pair();
 	}
 
 	bool is_end() const { return m_height == 0 || m_iters[0] == m_nodes[0]->size(); }
-	const std::pair<key_t, value_t>& get_pair() const { 
+	const pair_t& get_pair() const { 
 		assert(!is_end()); 
-		return m_pair; 
+		return *m_pair; 
 	}
-	const key_t& get_key() const { assert(!is_end()); return m_pair.first; }
-	const value_t& get_value() const { /*assert(!is_end());*/ return m_pair.second; }
+	const key_t& get_key() const { assert(!is_end()); assert(m_pair); return m_pair->first; }
+	const value_t& get_value() const { assert(!is_end()); assert(m_pair); return m_pair->second; }
 	ptr_t get_root() const { ptr_t r;  if (m_height != 0) r = m_nodes[0]; return r; }
 	size_t get_height() const { return m_height; }
 
 private:
+	void set_pair() 
+	{
+		delete m_pair;
+		m_pair = new pair_t(
+			m_nodes[m_height-1]->key(m_iters[m_height-1]),
+			m_nodes[m_height-1]->val(m_iters[m_height-1])
+		);
+	}
+	
 	// The height of the tree we are attached to
 	size_t m_height;  
 	// The nodes in the tree
@@ -327,7 +346,7 @@ private:
 	std::vector<ptr_t> m_nodes;
 	// The iterators within each node
 	std::vector<size_t> m_iters; 
-	std::pair<key_t, value_t> m_pair;
+	pair_t* m_pair;
 };
 
 }

@@ -63,10 +63,10 @@ private:
 
 	struct augmented_key
 	{
-		augmented_key()
-			: start()
-			, value(NULL)
-		{}
+		//augmented_key()
+		//	: start()
+		//	, value(NULL)
+		//{}
 
 		augmented_key(position_type _start)
 			: start(_start)

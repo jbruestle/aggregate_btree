@@ -86,8 +86,7 @@ private:
 			printf("FAILED in deref %d:%d vs %d:%d\n", m_biter->first,m_biter->second,m_miter->first,m_miter->second);
 			exit(1);
 		}
-		const value_type& r = *m_biter;
-		return r;
+		return *m_biter;
 	}
 	
 	biterator_t m_biter;

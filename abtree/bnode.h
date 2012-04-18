@@ -21,6 +21,7 @@
 #include <map>
 #include <stdio.h>
 #include <boost/thread/mutex.hpp>
+#include <boost/optional.hpp>
 
 #include "abtree/bdecl.h"
 #include "abtree/serial.h"
@@ -42,12 +43,15 @@ private:
 	typedef typename Policy::value_t value_t;
 	typedef typename apply_policy<Policy>::ptr_t ptr_t;
 	typedef typename apply_policy<Policy>::cache_t cache_t;
+	typedef boost::optional<key_t> okey_t;
+	typedef boost::optional<value_t> ovalue_t;
 
 	class functor_helper  // Allows policy 'less' to be a normal member function (or a functor)
 	{
 	public:
 		functor_helper(Policy& policy) : m_policy(policy) {}
-		bool operator()(const key_t& k1, const key_t& k2) { return m_policy.less(k1, k2); }
+		bool operator()(const okey_t& k1, const key_t& k2) { return m_policy.less(*k1, k2); }
+		bool operator()(const key_t& k1, const okey_t& k2) { return m_policy.less(k1, *k2); }
 	private:
 		Policy& m_policy;
 	};
@@ -278,9 +282,9 @@ public:
 
 	size_t size() const { return m_size; }
 	size_t height() const { return m_height; }
-	const key_t& key(size_t i) const { return m_keys[i]; }
+	const key_t& key(size_t i) const { return *m_keys[i]; }
 	Policy& get_policy() const { return m_policy; }
-	const value_t& val(size_t i) const { return m_values[i]; }
+	const value_t& val(size_t i) const { return *m_values[i]; }
 	const value_t& total() const { return m_total; }
 	const ptr_t& ptr(size_t i) const { return m_ptrs[i]; } 
 	ptr_t& ptr(size_t i) { return m_ptrs[i]; } 
@@ -292,7 +296,7 @@ public:
 	size_t find(const key_t& k) const
 	{
 		size_t i = lower_bound(k);
-		if (i != m_size && !m_policy.less(k, m_keys[i])) return i;
+		if (i != m_size && !m_policy.less(k, *m_keys[i])) return i;
 		return m_size;
 	}
 
@@ -417,8 +421,8 @@ private:
 			copy_entry(i, i+diff);
 		for(int i = m_size - diff; i < (int) m_size; i++)
 		{
-			m_keys[i] = key_t();
-			m_values[i] = value_t();
+			m_keys[i] = okey_t();
+			m_values[i] = ovalue_t();
 			m_ptrs[i] = ptr_t();
 		}
 			
@@ -473,8 +477,8 @@ private:
 		// Erase them from me
 		for(size_t i = keep_size; i < size(); i++)
 		{
-			m_keys[i] = key_t();
-			m_values[i] = value_t();
+			m_keys[i] = okey_t();
+			m_values[i] = ovalue_t();
 			m_ptrs[i] = ptr_t();
 		}
 	
@@ -536,7 +540,7 @@ private:
 		// Add my entries into it, and recompute total
 		// TODO: Make this not slow!
 		for(size_t i = 0; i < size(); i++)
-			peer->insert(m_keys[i], m_values[i], m_ptrs[i]);
+			peer->insert(*m_keys[i], *m_values[i], m_ptrs[i]);
 		// Fix peers total
 		peer->recompute_total();
 		// Set output
@@ -551,8 +555,8 @@ private:
 	int m_height;  // The height of this node (0 = leaf)
 	value_t m_total;  // Total of all down entries, cached
 	size_t m_size;
-	key_t m_keys[max_size + 1];  // All my keys
-	value_t m_values[max_size + 1];  // All my values
+	okey_t m_keys[max_size + 1];  // All my keys
+	ovalue_t m_values[max_size + 1];  // All my values
 	ptr_t m_ptrs[max_size + 1];  // All my pointers
 };
 
