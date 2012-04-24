@@ -31,13 +31,13 @@ namespace btree_impl {
 template<class Policy>
 class btree_base
 {
-	typedef bnode<Policy> node_t;
-	typedef typename apply_policy<Policy>::ptr_t ptr_t;
 	typedef typename apply_policy<Policy>::cache_t cache_t;
 	typedef typename apply_policy<Policy>::cache_ptr_t cache_ptr_t;
 	typedef typename Policy::value_t data_t;
 
 public:
+	typedef bnode<Policy> node_type;
+	typedef typename apply_policy<Policy>::ptr_t node_ptr_type;
 	typedef typename Policy::key_t key_type;
 	typedef typename Policy::value_t mapped_type;
 	typedef std::pair<const key_type, data_t> value_type;
@@ -78,7 +78,7 @@ public:
 	{
 		assert(m_cache);
 		// If root is null, see if an insert works
-		if (m_root == ptr_t())
+		if (m_root == node_ptr_type())
 		{
 			data_t v;
 			bool exists = false;
@@ -88,42 +88,42 @@ public:
 			if (!changed || !exists)
 				return false;
 			// Otherwise, create the initial node
-			m_root = m_cache->new_node(new node_t(m_cache->get_policy(), k, v));
+			m_root = m_cache->new_node(new node_type(m_cache->get_policy(), k, v));
 			m_height++;
 			m_size++;
 			return true;
 		}
 
 		// Let's try running the update
-		node_t* w_root = m_root->copy();
-		node_t* overflow = NULL;
-		ptr_t peer;
-		typename node_t::update_result r = w_root->update(*m_cache, k, peer, overflow, updater);
+		node_type* w_root = m_root->copy();
+		node_type* overflow = NULL;
+		node_ptr_type peer;
+		typename node_type::update_result r = w_root->update(*m_cache, k, peer, overflow, updater);
 
-		if (r == node_t::ur_nop)
+		if (r == node_type::ur_nop)
 		{
 			// If nothing happend, delete tmp root and return
 			delete w_root;
 			return false;
 		}
-		else if (r == node_t::ur_modify)
+		else if (r == node_type::ur_modify)
 		{
 			m_root = m_cache->new_node(w_root);
 		}
-		else if (r == node_t::ur_insert)
+		else if (r == node_type::ur_insert)
 		{
 			m_size++;
 			m_root = m_cache->new_node(w_root);
 		}
-		else if (r == node_t::ur_erase)
+		else if (r == node_type::ur_erase)
 		{
 			m_size--;
 			m_root = m_cache->new_node(w_root);
 		}
-		else if (r == node_t::ur_split)
+		else if (r == node_type::ur_split)
 		{
 			// Root just split, make new root
-			m_root = m_cache->new_node(new node_t(
+			m_root = m_cache->new_node(new node_type(
 				m_cache->get_policy(),
 				m_height,
 				m_cache->new_node(w_root), 
@@ -132,7 +132,7 @@ public:
 			m_height++;  
 			m_size++;
 		} 
-		else if (r == node_t::ur_singular)
+		else if (r == node_type::ur_singular)
 		{
 			// If the node is down to one element
 			// Get it's inner bit and throw it away
@@ -141,10 +141,10 @@ public:
 			m_height--;
 			m_size--;
 		}
-		else if (r == node_t::ur_empty)
+		else if (r == node_type::ur_empty)
 		{
 			// Tree is totally empty
-			m_root = ptr_t();
+			m_root = node_ptr_type();
 			delete w_root;
 			m_height = 0;
 			m_size = 0;
@@ -341,13 +341,13 @@ public:
 
 	void clear()
 	{
-		m_root = ptr_t();
+		m_root = node_ptr_type();
 		m_height = 0;
 	}
 
 	bool empty()
 	{
-		return m_root == ptr_t();
+		return m_root == node_ptr_type();
 	}
 
 	size_t size() const
@@ -461,6 +461,9 @@ public:
 	std::pair<iterator,iterator> equal_range(const key_type& x) {
 		return std::make_pair(lower_bound(x), upper_bound(x));
 	}
+
+	size_t get_height() const { return m_height; }
+	const node_ptr_type& get_root() const { return m_root; }
 	
 	size_t count(const key_type& x)
 	{
@@ -491,7 +494,7 @@ public:
 	{
 	public:
 		forever_functor() {}
-		bool operator()(const int& total) const { return false; }
+		bool operator()(const data_t& total) const { return false; }
 	};
 
 	data_t total(const const_iterator& start, const const_iterator& end)
@@ -507,17 +510,17 @@ public:
 #ifdef __BTREE_DEBUG
 	void print() const
 	{
-		if (m_root != ptr_t())
+		if (m_root != node_ptr_type())
 			m_root->print(0);
 		printf("\n");
 	}
 
 	bool validate() const
 	{
-		if (m_root == ptr_t() && m_height == 0)
+		if (m_root == node_ptr_type() && m_height == 0)
 			return true;
 
-		if (m_root == ptr_t() && m_height != 0)
+		if (m_root == node_ptr_type() && m_height != 0)
 		{
 			printf("Root is null for non-zero height");
 			return false;
@@ -528,7 +531,7 @@ public:
 private:
 	off_t lowest_loc()
 	{
-		if (m_root == ptr_t())
+		if (m_root == node_ptr_type())
 			return std::numeric_limits<off_t>::max();
 		return m_cache->get_oldest(m_root);
 	}
@@ -539,7 +542,7 @@ private:
 	}
 
 	cache_ptr_t m_cache;
-	ptr_t m_root;
+	node_ptr_type m_root;
 	size_t m_height;
 	size_t m_size;
 };

@@ -178,6 +178,27 @@ public:
 		return py_item_iterator(m_tree.begin(), m_tree.end());
 	}
 
+	object lower_bound(object key)
+	{
+		iterator_t it = m_tree.lower_bound(key);
+		if (it == m_tree.end())
+			return object();
+		return it->first;
+	}
+
+	object upper_bound(object key)
+	{
+		iterator_t it = m_tree.upper_bound(key);
+		if (it == m_tree.end())
+			return object();
+		return it->first;
+	}
+
+	object total(object start, object end)
+	{
+		return m_tree.total(m_tree.lower_bound(start), m_tree.lower_bound(end));
+	}
+
 	size_t __len__()
 	{
 		return m_tree.size();
@@ -222,6 +243,9 @@ BOOST_PYTHON_MODULE(btree_c)
 		.def("__delitem__", &py_tree::__delitem__)
 		.def("__iter__", &py_tree::__iter__)
 		.def("__len__", &py_tree::__len__)
+		.def("lower_bound", &py_tree::lower_bound)
+		.def("upper_bound", &py_tree::upper_bound)
+		.def("total", &py_tree::total)
 		.def("sync", &py_tree::sync)
 		.def("copy", &py_tree::copy);
 }

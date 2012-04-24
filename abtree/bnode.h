@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <boost/thread/mutex.hpp>
 #include <boost/optional.hpp>
+#include <boost/checked_delete.hpp>
 
 #include "abtree/bdecl.h"
 #include "abtree/serial.h"
@@ -45,6 +46,10 @@ private:
 	typedef typename apply_policy<Policy>::cache_t cache_t;
 	typedef boost::optional<key_t> okey_t;
 	typedef boost::optional<value_t> ovalue_t;
+	friend class btree_base<Policy>;
+	friend class apply_policy<Policy>::cache_t;
+	friend class apply_policy<Policy>::ptr_t;
+	friend void boost::checked_delete<>(bnode*);
 
 	class functor_helper  // Allows policy 'less' to be a normal member function (or a functor)
 	{
@@ -55,7 +60,7 @@ private:
 	private:
 		Policy& m_policy;
 	};
-public:
+
 	// Create a new 'tree' with one element
 	bnode(Policy& policy, const key_t& k, const value_t& v)
 		: m_policy(policy)
@@ -221,7 +226,7 @@ public:
 		bnode* overflow = NULL;
 
 		// Run the recursive update 
-		update_result r = new_node->update(cache, k, ptr(pi), overflow, updater);
+		update_result r = new_node->update(cache, k, ptrnc(pi), overflow, updater);
 		if (r == ur_nop)
 		{
 			// Nothing happened, undo everything
@@ -280,14 +285,16 @@ public:
 		return false;
 	}
 
+	ptr_t& ptrnc(size_t i) { return m_ptrs[i]; } 
+
+public:
+	Policy& get_policy() const { return m_policy; }
 	size_t size() const { return m_size; }
 	size_t height() const { return m_height; }
 	const key_t& key(size_t i) const { return *m_keys[i]; }
-	Policy& get_policy() const { return m_policy; }
 	const value_t& val(size_t i) const { return *m_values[i]; }
 	const value_t& total() const { return m_total; }
 	const ptr_t& ptr(size_t i) const { return m_ptrs[i]; } 
-	ptr_t& ptr(size_t i) { return m_ptrs[i]; } 
 
 	size_t lower_bound(const key_t& k) const 
 	{ return std::lower_bound(m_keys, m_keys + m_size, k, functor_helper(m_policy)) - m_keys; }
@@ -300,6 +307,8 @@ public:
 		return m_size;
 	}
 
+private:
+#ifdef __BTREE_DEBUG
 	void print(int indent) const
 	{
 		for(size_t i = 0; i < size(); i++)
@@ -363,6 +372,7 @@ public:
 		}
 		return true;
 	}
+#endif
 
 	// Constructor for an empty bnode
 	// Used during deserialization
@@ -430,7 +440,6 @@ private:
 	}
 	void erase(size_t loc) { erase(loc, loc+1); }
 
-public:
 	value_t compute_total() const
 	{
 		// Initialize return value via copy construction
@@ -445,7 +454,6 @@ public:
 		return total;
 	}
 
-private:
 	void recompute_total() 
 	{
 		m_total = compute_total();
@@ -549,8 +557,6 @@ private:
 		return ur_merge;
 	}
 
-
-private:
 	Policy& m_policy;
 	int m_height;  // The height of this node (0 = leaf)
 	value_t m_total;  // Total of all down entries, cached

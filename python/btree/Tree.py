@@ -44,6 +44,15 @@ class Tree(collections.MutableMapping):
 	def __len__(self):
 		return self.inner.__len__()
 
+	def lower_bound(self, k):
+		return self.inner.lower_bound(k)
+
+	def upper_bound(self, k):
+		return self.inner.upper_bound(k)
+
+	def total(self, k1, k2):
+		return self.inner.total(k1, k2)
+
 	def sync(self):
 		return self.inner.sync()
 

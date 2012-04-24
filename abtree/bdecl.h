@@ -44,7 +44,7 @@ template<class Policy>
 class biter;
 
 template<class Policy>
-class btree;
+class btree_base;
 
 template<class Policy, bool use_cache>
 struct apply_policy_impl
