@@ -19,12 +19,12 @@
 #define __bcache_h__
 
 #include <set>
-#include <boost/thread.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/intrusive/list.hpp>
 
 #include "abtree/bdecl.h"
 #include "abtree/vector_io.h"
+#include "abtree/abt_thread.h"
 
 namespace btree_impl {
 
@@ -34,8 +34,8 @@ class bcache
 	typedef bnode<Policy> node_t;
 	typedef bnode_proxy<Policy> proxy_t;
 	typedef bnode_cache_ptr<Policy> ptr_t;
-	typedef boost::recursive_mutex mutex_t;
-	typedef boost::unique_lock<mutex_t> lock_t;
+	typedef abt_mutex mutex_t;
+	typedef abt_lock lock_t;
 	typedef typename Policy::store_t store_t;
 
 public:
@@ -352,7 +352,7 @@ private:
 	size_t m_max_unwritten_size;
 	size_t m_max_lru_size;
 	bool m_in_write;
-	boost::condition_variable_any m_cond;
+	abt_condition m_cond;
 	boost::intrusive::list<proxy_t> m_unwritten;
 	boost::intrusive::list<proxy_t> m_lru;
 	typedef boost::unordered_map<off_t, proxy_t*> by_off_t;

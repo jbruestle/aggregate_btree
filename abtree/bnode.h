@@ -20,7 +20,6 @@
 
 #include <map>
 #include <stdio.h>
-#include <boost/thread/mutex.hpp>
 #include <boost/optional.hpp>
 #include <boost/checked_delete.hpp>
 

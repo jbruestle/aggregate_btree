@@ -18,13 +18,13 @@
 #ifndef __file_bstore_h__
 #define __file_bstore_h__
 
-#include <boost/thread.hpp>
 #include <vector>
 #include <map>
 
 #include "abtree/vector_io.h"
 #include "abtree/file_io.h"
 #include "abtree/serial.h"
+#include "abtree/abt_thread.h"
 
 class file_bstore
 {
@@ -37,8 +37,8 @@ class file_bstore
 	};
 	
 	typedef std::map<off_t, file_info> slabs_t;
-	typedef boost::recursive_mutex mutex_t;
-	typedef boost::unique_lock<mutex_t> lock_t;
+	typedef abt_mutex mutex_t;
+	typedef abt_lock lock_t;
 
 public:
 	// Direct user API

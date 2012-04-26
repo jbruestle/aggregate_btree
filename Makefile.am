@@ -6,7 +6,7 @@ libabtree_la_SOURCES = \
 		abtree/file_io.cpp \
 		abtree/io.cpp \
 		abtree/hilbert.c 
-libabtree_la_LIBADD = -lm -lboost_thread-mt
+libabtree_la_LIBADD = -lm -lpthread
 abtree_includedir=$(includedir)
 nobase_abtree_include_HEADERS = \
 		abtree/disk_abtree.h \
@@ -29,7 +29,7 @@ nobase_abtree_include_HEADERS = \
 #AM_CPPFLAGS = -I$(top_srcdir)/gtest-1.5.0/include -I$(top_srcdir)/gtest-1.5.0 -O3 -g
 AM_CPPFLAGS = -I$(top_srcdir)/gtest-1.5.0/include -I$(top_srcdir)/gtest-1.5.0 -g
 bin_PROGRAMS = test_btree
-test_btree_LDADD = libabtree.la -lm -lboost_thread-mt
+test_btree_LDADD = libabtree.la -lm -lpthread
 test_btree_LDFLAGS = -g
 test_btree_SOURCES = \
 		gtest-1.5.0/src/gtest-all.cc \

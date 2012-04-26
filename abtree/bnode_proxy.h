@@ -19,9 +19,9 @@
 #define __bnode_proxy_h__
 
 #include <assert.h>
-#include <boost/thread.hpp>
 #include <boost/intrusive/list.hpp>
 
+#include "abtree/abt_thread.h"
 #include "abtree/bdecl.h"
 
 namespace btree_impl {
@@ -58,7 +58,7 @@ class bnode_proxy : public boost::intrusive::list_base_hook<>
 	typedef bnode<Policy> node_t;
 	typedef bnode_cache_ptr<Policy> ptr_t;
 	typedef bcache<Policy> cache_t;
-	typedef boost::condition_variable_any condition_t;
+	typedef abt_condition condition_t;
 	friend class pinned_proxy<Policy>;
 	friend class bcache<Policy>;
 
