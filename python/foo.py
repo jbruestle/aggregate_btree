@@ -22,3 +22,5 @@ print "Tree3"
 for (k, v) in tree3:
 	print k, ":", v 
 
+tree.commit()
+

@@ -1,7 +1,7 @@
 
 import abtree_c
 import collections
-import msgpack
+import json
 
 class Tree(collections.MutableMapping):
 	def __init__(self,  *args, **kwargs):
@@ -14,8 +14,8 @@ class Tree(collections.MutableMapping):
 		name = "root", 
 		aggregate_func = lambda a,b: None,
 		cmp_func = cmp,
-		serialize_func = msgpack.packb,
-		deserialize_func = msgpack.unpackb,
+		serialize_func = json.dumps,
+		deserialize_func = json.loads,
 		max_unwritten = 1000,
 		max_lru = 10000,
 		auto_inner=None):
@@ -55,7 +55,7 @@ class Tree(collections.MutableMapping):
 	def total(self, k1, k2):
 		return self.inner.total(k1, k2)
 
-	def sync(self):
+	def commit(self):
 		return self.inner.sync()
 
 	def copy(self):

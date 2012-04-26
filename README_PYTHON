@@ -2,12 +2,6 @@
 INSTALLING
 ----------
 
-This libary relies on msgpack for serialization.  To install msgpack, you would typically run:
-
-easy_install msgpack
-
-However, check out http://msgpack.org/ if you have nay problems.  As for installing the abtree libaray, on most system you should be able to simply run:
-
 sudo python2.7 ./setup.py install
 
 This will build the C++ components, package up the python components, and install everything on your system.  Note that the C++ components are built using boost, however for ease of installation, the library includes it's own copies of the boost libary as needed.
@@ -32,13 +26,15 @@ for x in tree.keys():  # Iterate over all the keys
 
 etc.
 
-Changes to the tree stay in memory until you commit them to disk via
+### It's transcational
 
-tree.sync()
+Changes to the tree are appear in memory, but are not finalized (won't reappear upon a shutdown/reload) until you commit them to via
 
-After this sync, data should be safe.  Any type of data which msgpack knows how to serialize can be put into the keys and values of the tree.  If you want to put other types of data into the tree, you can overload the serialization methods (see advanced options).  
+tree.commit()
 
-### But it's sorted
+In this way, the tree is transactional.  Sometime shortly after the commit completes (based on operating system buffering) the data will be durable on disk, but no matter when the system crashes, when it recovers, it wil *always* be to the exact state as of some commit.  As for the serialization of the data, the default serializers use pythons json serializer, and can thus serialize anythin json can serialize.  The serialization method can be overloaded (see advanced options), and I might suggest taking a look at msgpack (http://msgpack.org/).  The decision not to use pickle as the default was based on the desire to interoperate with the C++ verison (and possible other language bindings).
+
+### It's sorted
 
 Unlike a normal dictionary, the elements in a tree are always sorted by their key.  Normally, the python 'cmp' function is used to sort things, but you can override it to specify your own ordering function (see advanced options).  This means that when you walk over items, keys, or values, you will always receive them in the order of their keys. 
 
