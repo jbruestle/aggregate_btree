@@ -1,0 +1,14 @@
+
+The c++ version of the aggregate btree library requires boost
+
+To build and install the c++ library, do the following:
+
+autoreconf -fi
+mkdir build && cd build
+../configure
+make
+sudo make install
+
+The libary makes the aggregate btree look like an STL collection with some extra behaviors.  These is currently no documentation, but please see the examples in test/*.cpp for a rough idea of the usage.
+
+

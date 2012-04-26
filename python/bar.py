@@ -1,7 +1,7 @@
 
-import btree
+import stat_tree 
 
-tree = btree.StatsTree('/tmp/thetree')
+tree = stat_tree.StatsTree('/tmp/thetree')
 tree.write(0.0, ['tag1'], {'m1':500, 'm2':200})
 tree.write(0.0, ['tag2'], {'m1':400, 'm3':300})
 tree.write(1.0, ['tag1'], {'m1':300, 'm2':200})

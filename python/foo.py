@@ -1,10 +1,8 @@
 
-import btree
-import btree_c
-import msgpack
+import abtree
 
-store = btree_c.Store("/tmp/wtf", True)
-tree = btree.Tree(store, "root", lambda a,b: a + b)
+store = abtree.Store("/tmp/wtf", True)
+tree = abtree.Tree(store)
 tree['hello'] = 3
 tree['world'] = 5
 tree2 = tree  # Shallow copy

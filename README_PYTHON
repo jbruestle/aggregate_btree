@@ -1,0 +1,60 @@
+
+INSTALLING
+----------
+
+This libary relies on msgpack for serialization.  To install msgpack, you would typically run:
+
+easy_install msgpack
+
+However, check out http://msgpack.org/ if you have nay problems.  As for installing the abtree libaray, on most system you should be able to simply run:
+
+sudo python2.7 ./setup.py install
+
+This will build the C++ components, package up the python components, and install everything on your system.  Note that the C++ components are built using boost, however for ease of installation, the library includes it's own copies of the boost libary as needed.
+
+USING IT
+--------
+
+### It looks like a dictionary
+
+An abtree looks like a very special python dictionary, which is backed by files on disk.  Currently, the abree requires a directory for it's files, (which are called data0, data1, etc).  Future versions will use a single file.  The simpliest use case would be as follows
+
+import abtree 
+
+store = abtree.Store("/some/dir")  # Open and load (create if needed) the directory '/some/dir'
+tree = abtree.Tree(store)  # Build the tree from this storage location
+
+Now, tree can be used just like a dictionary
+
+tree['key'] ='value'  # Add/change a key/value pair
+for x in tree.keys():  # Iterate over all the keys
+    print x
+
+etc.
+
+Changes to the tree stay in memory until you commit them to disk via
+
+tree.sync()
+
+After this sync, data should be safe.  Any type of data which msgpack knows how to serialize can be put into the keys and values of the tree.  If you want to put other types of data into the tree, you can overload the serialization methods (see advanced options).  
+
+### But it's sorted
+
+Unlike a normal dictionary, the elements in a tree are always sorted by their key.  Normally, the python 'cmp' function is used to sort things, but you can override it to specify your own ordering function (see advanced options).  This means that when you walk over items, keys, or values, you will always receive them in the order of their keys. 
+
+### And it's sliceable (Not working yet)
+
+You can also create slices of the tree using the normal python slicing operator.  Each new slice looks like another smaller ordered dictionary of just the range in question.  You can use this to walk over a small range of key, for example:
+
+for x in tree['bar, 'baz'].items():
+    print x
+
+Changing the resulting slice changes the underlying tree, if you want a immutable slice see 'copy' below.  Assigning to a slice works, but may not have exactly the behaivor you would expect.  It does remove the elements in the slice (which if the slice is large, might take a long time), and it does insert a new set of items (which must be tuples of (key, value) to be valid).  However the resulting tuples end up in the tree in their sorted order (by key), not in the order they were given.
+
+### And it's 'free' to copy
+
+Because of the shadowing suport...
+
+---- More docs to come -----
+
+

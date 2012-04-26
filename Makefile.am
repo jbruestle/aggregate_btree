@@ -8,7 +8,7 @@ libabtree_la_SOURCES = \
 		abtree/hilbert.c 
 libabtree_la_LIBADD = -lm -lpthread
 abtree_includedir=$(includedir)
-nobase_abtree_include_HEADERS = \
+abtree_include_HEADERS = \
 		abtree/disk_abtree.h \
 		abtree/abtree.h \
 		abtree/interval_tree.h \
@@ -26,8 +26,8 @@ nobase_abtree_include_HEADERS = \
 		abtree/spatial.h \
 		abtree/hilbert.h 
 
-#AM_CPPFLAGS = -I$(top_srcdir)/gtest-1.5.0/include -I$(top_srcdir)/gtest-1.5.0 -O3 -g
-AM_CPPFLAGS = -I$(top_srcdir)/gtest-1.5.0/include -I$(top_srcdir)/gtest-1.5.0 -g
+AM_CPPFLAGS = -I$(top_srcdir)/gtest-1.5.0/include -I$(top_srcdir)/gtest-1.5.0 -O3 -g
+#AM_CPPFLAGS = -I$(top_srcdir)/gtest-1.5.0/include -I$(top_srcdir)/gtest-1.5.0 -g
 bin_PROGRAMS = test_btree
 test_btree_LDADD = libabtree.la -lm -lpthread
 test_btree_LDFLAGS = -g
