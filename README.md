@@ -1,6 +1,6 @@
 
 
-If you are in a hurry to get started, see the [Python Quickstart] or the [C++ Quickstart] depending on your language of choice.
+If you are in a hurry to get started, see the [Python Quickstart][] or the [C++ Quickstart][] depending on your language of choice.
 
 # Using abtree in C++
 ## C++ Quickstart
