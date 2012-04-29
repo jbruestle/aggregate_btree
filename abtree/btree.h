@@ -149,7 +149,7 @@ public:
 			m_height = 0;
 			m_size = 0;
 		}
-		clean_one();
+		m_cache->clean_one();
 		return true;	
 	}
 	
@@ -529,17 +529,6 @@ public:
 	}
 #endif
 private:
-	off_t lowest_loc()
-	{
-		if (m_root == node_ptr_type())
-			return std::numeric_limits<off_t>::max();
-		return m_cache->get_oldest(m_root);
-	}
-
-	void clean_one()
-	{
-		m_cache->load_below(m_root, lowest_loc());
-	}
 
 	cache_ptr_t m_cache;
 	node_ptr_type m_root;

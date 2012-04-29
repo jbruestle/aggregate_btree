@@ -35,6 +35,7 @@ test_btree_SOURCES = \
 		gtest-1.5.0/src/gtest-all.cc \
 		test/side_by_side.cpp \
 		test/basic_memory.cpp \
+		test/rolling_cleanup.cpp \
 		test/interval_tree.cpp \
 		test/walker.cpp \
 		test/spatial.cpp \

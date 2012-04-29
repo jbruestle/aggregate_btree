@@ -51,7 +51,7 @@ public:
 	{
 		lock_t lock(m_mutex);
 		while(m_lru.size() > 0)
-			reduce_lru();
+			reduce_lru(lock);
 	}
 
 	void inc(proxy_t& proxy)
@@ -62,32 +62,36 @@ public:
 
 	void dec(proxy_t& proxy)
 	{
-		lock_t lock(m_mutex);
-		proxy.m_ref_count--;
-		if (proxy.m_ref_count == 0)
+		std::vector<const node_t*> further;
 		{
-			assert(proxy.m_pin_count == 0);
-			assert(proxy.m_state != proxy_t::writing && proxy.m_state != proxy_t::loading);
-			if (proxy.m_state == proxy_t::unwritten)  // If it's unwritten
+			lock_t lock(m_mutex);
+			proxy.m_ref_count--;
+			if (proxy.m_ref_count == 0)
 			{
-				// Remove from list to write, delete node and proxy
-				m_unwritten.erase(m_unwritten.iterator_to(proxy));  
-				delete proxy.m_ptr; // May cause further 'dec' via recursion
-				delete &proxy;
-			}
-			else // Must be unloaded or cached
-			{
-				// Remove from oldest list since it's no longer reachable
-				old_off_t oot(proxy.m_oldest, &proxy);
-				m_oldest.erase(oot);
-				// If it's not in the cache, delete it completely
-				if (proxy.m_state == proxy_t::unloaded)
+				assert(proxy.m_pin_count == 0);
+				assert(proxy.m_state != proxy_t::writing && proxy.m_state != proxy_t::loading);
+				if (proxy.m_state == proxy_t::unwritten)  // If it's unwritten
 				{
-					m_by_off.erase(proxy.m_off);
+					// Remove from list to write, delete node and proxy
+					m_unwritten.erase(m_unwritten.iterator_to(proxy));  
+					further.push_back(proxy.m_ptr);  // Prevent recursive 'dec' with lock held
 					delete &proxy;
+				}
+				else // Must be unloaded or cached
+				{
+					// Remove from oldest list since it's no longer reachable
+					m_oldest.erase(&proxy);
+					// If it's not in the cache, delete it completely
+					if (proxy.m_state == proxy_t::unloaded)
+					{
+						m_by_off.erase(proxy.m_off);
+						delete &proxy;
+					}
 				}
 			}
 		}
+		for(size_t i = 0; i < further.size(); i++)
+			delete further[i];
 	}
 
 
@@ -134,7 +138,7 @@ public:
 		{
 			m_lru.push_back(proxy);  // Put at end of LRU
 			while(m_lru.size() > m_max_lru_size)
-				reduce_lru();  // Reduce if needed
+				reduce_lru(lock);  // Reduce if needed
 		}
 	}
 
@@ -157,28 +161,7 @@ public:
 		return r;
 	}
 
-	off_t get_oldest(const ptr_t& ptr) { return ptr.get_oldest(); }
-
-	bool load_below(ptr_t& root, off_t off)
-	{
-		if (root == ptr_t())
-                        return false;
-
-                if (off == std::numeric_limits<off_t>::max())
-                        return false;
-
-                // Otherwise, give it a go
-                node_t* w_root = root->copy();
-                bool r = w_root->load_below(*this, off);
-                if (r)
-                        root = new_node(w_root);
-                else
-                        delete w_root;
-
-                return r;
-	}
-
-	ptr_t lookup(off_t off, off_t oldest)
+	ptr_t lookup(off_t off, off_t oldest, size_t height)
 	{
 		assert(off != 0);
 		lock_t lock(m_mutex);
@@ -186,15 +169,14 @@ public:
 		typename by_off_t::iterator it = m_by_off.find(off);
 		if (it == m_by_off.end())
 		{
-			r = new proxy_t(*this, off, oldest);
-			old_off_t oot(oldest, r);
-			m_oldest.insert(oot);
+			r = new proxy_t(*this, off, oldest, height);
+			m_oldest.insert(r);
 			m_by_off[off] = r;
 		}
 		else
 		{
 			r = it->second;
-			r->inc();
+			r->m_ref_count++;
 		}
 		return ptr_t(r);
 	}
@@ -205,7 +187,7 @@ public:
 		off_t root_oldest;
 		read_root(name, root_node, root_oldest, height, size);
 		if (root_node != 0)
-			root = lookup(root_node, root_oldest);
+			root = lookup(root_node, root_oldest, height);
 	}
 	
 	void sync(const std::string& name, const ptr_t& until, size_t height, size_t size)
@@ -234,28 +216,84 @@ public:
 			m_mutex.lock();
 			// Remove excess cached nodes
 			while(m_lru.size() > m_max_lru_size)
-				reduce_lru();
+				reduce_lru(lock);
 			// Find the lowest location
-			ll = lowest_loc();
+			ll = std::numeric_limits<off_t>::max();
+			if (m_oldest.size() != 0)
+				ll = (*m_oldest.begin())->m_oldest;
 		}
 		// Clear excess written data outside of the lock
 		m_store.clear_before(ll);
 	}
 
-private:
-	off_t lowest_loc()
+	void clean_one()
 	{
-		if (m_oldest.size() == 0)
+		lock_t lock(m_mutex);
+		// If there is nothing on disk, forget it
+		if (m_oldest.size() == 0) return;
+		// Otherwise, find the oldest location
+		typename oldest_t::const_iterator it = m_oldest.begin();
+		off_t to_clean = (*it)->m_oldest;
+		// If it's not on disk, forget it, note: I don't think this can happen, but let's be safe
+		if (to_clean == std::numeric_limits<off_t>::max()) return;
+		// For all the elements, load and collect
+		// Because everything within the same oldest offset is sorted by descending height
+		// newly loaded nodes will *always* appear after our current iterator, and the resulting
+		// queue of found nodes will be in topological sort sort for the DAG
+		std::vector<proxy_t*> found;
+		while(it != m_oldest.end() && (*it)->m_oldest == to_clean)
 		{
-			return std::numeric_limits<off_t>::max();
+			m_mutex.unlock();
+			pin(**it); // The dreaded **
+			m_mutex.lock();
+			found.push_back(*it);
+			++it;	
 		}
-		return m_oldest.begin()->first;
+		// Since we unlocked a bunch, we need to double check that nothing untoward
+		// happened while we were gathering data (specifically, newly added nodes, etc)
+		bool failed = false;
+		size_t i = 0;
+		it = m_oldest.begin();
+		while(!failed && it != m_oldest.end() && (*it)->m_oldest == to_clean)
+		{
+			if (i >= found.size() || found[i] != *it) 
+				failed = true;
+			i++;
+			it++;
+		}
+		if (!failed)
+		{
+			// Do the actual instantanous update
+			for(size_t i = found.size(); i > 0; i--)
+			{
+				// Get each proxy, starting from the leaf
+				proxy_t* p = found[i-1];
+				// All node's state should be 'cached' and 'pinned'
+				// They are pinned because we pinned them, they are cached because
+				// only cached nodes ever appear in m_oldest
+				m_oldest.erase(p); // Remove from oldest
+				m_by_off.erase(p->m_off);  // Remove for offset lookup
+				p->m_state = proxy_t::unwritten;  // Set state to unwritten
+				m_unwritten.push_back(*p);  // Write to unwritten queue
+			}
+		}			
+		// Regardless, unpin all the nodes
+		m_mutex.unlock();
+		for(size_t i = 0; i < found.size(); i++)
+		{
+			unpin(*found[i]);
+		}
+		m_mutex.lock();
+		// Finally, remove extra unwritten data
+		while(m_unwritten.size() > m_max_unwritten_size)
+			write_front(lock);
 	}
+private:
 
 	void write_front(lock_t& lock)
 	{
 		while(m_in_write)
-			m_cond.wait(lock);
+			m_write_cond.wait(lock);
 		m_in_write = true;
 		// Pop front writable node
 		proxy_t& proxy = m_unwritten.front();
@@ -270,7 +308,7 @@ private:
 		m_mutex.lock();
 		// Now change node state yet again
 		m_in_write = false;
-		m_cond.notify_all();
+		m_write_cond.notify_all();
 		proxy.m_off = off;
 		proxy.m_oldest = off;
 		if (node->height() != 0)
@@ -278,19 +316,18 @@ private:
 			for(size_t i = 0; i < node->size(); i++)
 				proxy.m_oldest = std::min(proxy.m_oldest, node->ptr(i).get_oldest());
 		}
-		old_off_t oot(proxy.get_oldest(), &proxy);
-		m_oldest.insert(oot);
+		m_oldest.insert(&proxy);
 		proxy.m_state = proxy_t::cached;
 		proxy.m_pin_count--;
 		if (proxy.m_pin_count == 0)
 			m_lru.push_back(proxy);
 	}
 
-	void reduce_lru()
+	void reduce_lru(lock_t& lock)
 	{
 		proxy_t& proxy = m_lru.front();
 		m_lru.pop_front();
-		delete proxy.m_ptr;
+		const node_t* to_delete = proxy.m_ptr;
 		proxy.m_state = proxy_t::unloaded;
 		proxy.m_ptr = NULL;
 		if (proxy.m_ref_count == 0)
@@ -298,6 +335,9 @@ private:
 			m_by_off.erase(proxy.m_off);
 			delete &proxy;
 		}
+		m_mutex.unlock();
+		delete to_delete;
+		m_mutex.lock();
 	}
 
         off_t write_node(const node_t& bnode)
@@ -346,19 +386,31 @@ private:
 		deserialize(io, size);
 	}
 
+	struct cmp_oldest
+	{
+		bool operator()(const proxy_t* a, const proxy_t* b) const
+		{
+			if (a->m_oldest != b->m_oldest) 
+				return a->m_oldest < b->m_oldest;	
+			if (a->m_height != b->m_height)
+				return a->m_height > b->m_height;
+			return a < b;
+		}
+	};
+
 	Policy m_policy;		
 	store_t& m_store;
 	mutex_t m_mutex;	
 	size_t m_max_unwritten_size;
 	size_t m_max_lru_size;
 	bool m_in_write;
-	abt_condition m_cond;
+	abt_condition m_write_cond;
 	boost::intrusive::list<proxy_t> m_unwritten;
 	boost::intrusive::list<proxy_t> m_lru;
 	typedef boost::unordered_map<off_t, proxy_t*> by_off_t;
 	by_off_t m_by_off;
-	typedef std::pair<off_t, proxy_t*> old_off_t;
-	std::set<old_off_t> m_oldest;
+	typedef std::set<proxy_t*, cmp_oldest> oldest_t;
+	oldest_t m_oldest;
 };
 
 template<class Policy>
@@ -369,8 +421,7 @@ public:
 	typedef bnode<Policy> node_t;
 	typedef typename apply_policy<Policy>::ptr_t ptr_t;
 	ptr_t new_node(node_t* node) { return ptr_t(node); }
-	off_t get_oldest(const ptr_t& ptr) { return std::numeric_limits<off_t>::max(); }
-	bool load_below(ptr_t& ptr, off_t off) { return true; }
+	void clean_one() {}
 	Policy& get_policy() { return m_policy; }
 private:
 	Policy m_policy;

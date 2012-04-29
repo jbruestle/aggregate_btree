@@ -72,10 +72,11 @@ private:
 		, m_ptr(rhs)
 		, m_off(0)
 		, m_oldest(std::numeric_limits<off_t>::max())
+		, m_height(rhs->height())
 	{}
 
 	// Create a new proxy from a disk location
-	bnode_proxy(cache_t& store, off_t off, off_t oldest) 
+	bnode_proxy(cache_t& store, off_t off, off_t oldest, size_t height) 
 		: m_cache(store)
 		, m_state(unloaded)
 		, m_ref_count(1)
@@ -83,6 +84,7 @@ private:
 		, m_ptr(NULL)
 		, m_off(off)
 		, m_oldest(oldest)
+		, m_height(height)
 	{}
 
 	~bnode_proxy()
@@ -125,6 +127,7 @@ private:
 	const node_t* m_ptr;
 	off_t m_off;
 	off_t m_oldest;
+	size_t m_height;
 };
 
 }

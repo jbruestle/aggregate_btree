@@ -34,9 +34,7 @@ class abt_mutex
 public:
 	abt_mutex()
 	{
-		pthread_mutexattr_init(&m_attr);
-		pthread_mutexattr_settype(&m_attr, PTHREAD_MUTEX_RECURSIVE);
-		pthread_mutex_init(&m_mutex, &m_attr);
+		pthread_mutex_init(&m_mutex, NULL);
 	}
 	~abt_mutex()
 	{
@@ -52,9 +50,10 @@ public:
 	{
 		pthread_mutex_unlock(&m_mutex);
 	}
+
 private:
+	bool m_held;
 	pthread_mutex_t m_mutex;
-	pthread_mutexattr_t m_attr;
 };
 
 class abt_lock

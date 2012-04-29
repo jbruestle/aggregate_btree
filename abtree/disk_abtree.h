@@ -37,6 +37,7 @@ public:
 			: File() 
 			, m_cache(*this, max_unwritten, max_lru, policy_t(policy))
 		{}
+		void clean_one() { m_cache.clean_one(); }
 	private:
 		cache_t m_cache;
 	};			
