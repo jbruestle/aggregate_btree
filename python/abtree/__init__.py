@@ -1,8 +1,6 @@
 
-import abtree_c 
-
-__all__ = ["Tree"]
+__all__ = ["Tree", "Store"]
 
 from Tree import Tree
-from abtree_c import Store
+from Store import Store
 

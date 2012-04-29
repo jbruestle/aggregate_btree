@@ -3,17 +3,14 @@
 #include <boost/shared_ptr.hpp>
 using namespace boost::python;
 
-#include "abtree/abtree.h"
+#include "abtree/disk_abtree.h"
 
 class pytree_policy
 {
 public:
-        static const bool use_cache = true;
-        static const size_t min_size = 10;
-        static const size_t max_size = 20;
-        typedef object key_t;
-        typedef object value_t;
-        typedef file_bstore store_t;
+	static const size_t node_size = 20;
+        typedef object key_type;
+        typedef object mapped_type;
 
 	pytree_policy()
 	{}
@@ -82,8 +79,8 @@ private:
 };
 */
 
-typedef btree_impl::btree_base<pytree_policy> tree_t;
-typedef btree_impl::bcache<pytree_policy> cache_t;
+typedef disk_abtree<pytree_policy> tree_t;
+typedef tree_t::store_type store_t;
 typedef tree_t::const_iterator iterator_t;
 
 class py_item_iterator
@@ -119,34 +116,29 @@ private:
 class py_store
 {
 public:
-	py_store(const std::string& name, bool create)
+	py_store(const std::string& name, bool create, size_t max_unwritten, size_t max_lru)
+		: m_store(max_unwritten, max_lru)
 	{
-		printf("Opening store\n");
 		m_store.open(name, create);
 	}
 
 	~py_store()
 	{
-		printf("Closing store\n");
 		m_store.close();
 	}
-	file_bstore& get_store() { return m_store; }
+
+	store_t& get_store() { return m_store; }
 
 private:
-	file_bstore m_store;
+	store_t m_store;
 };
 
 class py_tree 
 {
 public:
 	py_tree(boost::shared_ptr<py_store> store, const object& policy)
-		: m_cache(new cache_t(
-			store->get_store(),
-			extract<size_t>(policy["max_unwritten"]),
-			extract<size_t>(policy["max_lru"]),
-			pytree_policy(policy)))
-		, m_name(extract<std::string>(policy["name"]))
-		, m_tree(&*m_cache, m_name)
+		: m_name(extract<std::string>(policy["name"]))
+		, m_tree(store->get_store(), m_name, pytree_policy(policy))
 	{
 		printf("Constructed tree!\n");
 	}
@@ -216,12 +208,10 @@ public:
 
 private:
 	py_tree(const py_tree& rhs)
-		: m_cache(rhs.m_cache)
-		, m_name(rhs.m_name)
+		: m_name(rhs.m_name)
 		, m_tree(rhs.m_tree)
 	{}
 
-	boost::shared_ptr<cache_t> m_cache;
 	std::string m_name;
 	tree_t m_tree;
 };
@@ -236,7 +226,7 @@ BOOST_PYTHON_MODULE(abtree_c)
 	class_<py_item_iterator>("ItemIterator", no_init)
 		.def("__iter__", &py_item_iterator::__iter__)
 		.def("next", &py_item_iterator::next);
-	class_<py_store, boost::shared_ptr<py_store>, boost::noncopyable >("Store", init<std::string, bool>());
+	class_<py_store, boost::shared_ptr<py_store>, boost::noncopyable >("Store", init<std::string, bool, size_t, size_t>());
 	class_<py_tree, boost::shared_ptr<py_tree>, boost::noncopyable >("Tree", init<boost::shared_ptr<py_store>, object>())
 		.def("__getitem__", &py_tree::__getitem__)
 		.def("__setitem__", &py_tree::__setitem__)

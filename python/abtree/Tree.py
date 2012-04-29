@@ -16,19 +16,15 @@ class Tree(collections.MutableMapping):
 		cmp_func = cmp,
 		serialize_func = json.dumps,
 		deserialize_func = json.loads,
-		max_unwritten = 1000,
-		max_lru = 10000,
 		auto_inner=None):
 		policy = {
-			'max_unwritten' : max_unwritten,
-			'max_lru' : max_lru,
 			'name' : name,
 			'serialize' : serialize_func,
 			'deserialize' : deserialize_func,
 			'cmp' : cmp_func,
 			'aggregate' : aggregate_func
 		}
-		self.inner = abtree_c.Tree(store, policy)
+		self.inner = abtree_c.Tree(store.store, policy)
 	
 	def __getitem__(self, key):
 		print "Doing getitem"
