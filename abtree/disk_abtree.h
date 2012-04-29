@@ -33,18 +33,24 @@ public:
 	{
 		friend class disk_abtree;
 	public:
-		store_type(size_t max_unwritten, size_t max_lru, const BasePolicy& policy = BasePolicy())
+		store_type(size_t max_unwritten, size_t max_lru)
 			: File() 
-			, m_cache(*this, max_unwritten, max_lru, policy_t(policy))
+			, m_cache(*this, max_unwritten, max_lru)
 		{}
 		void clean_one() { m_cache.clean_one(); }
 	private:
 		cache_t m_cache;
 	};			
 
-	disk_abtree(store_type& store) : base_t(&store.m_cache) {}
-	disk_abtree(store_type& store, const std::string& name) : base_t(&store.m_cache, name) {}
-	disk_abtree(const disk_abtree& rhs) : base_t(rhs) {}
+	disk_abtree(store_type& store, const BasePolicy& policy = BasePolicy()) 
+		: base_t(&store.m_cache, policy_t(policy))
+	{}
+	disk_abtree(store_type& store, const std::string& name, const BasePolicy& policy = BasePolicy()) 
+		: base_t(&store.m_cache, name, policy_t(policy)) 
+	{}
+	disk_abtree(const disk_abtree& rhs) 
+		: base_t(rhs) 
+	{}
 };
 
 #endif

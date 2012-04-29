@@ -29,7 +29,7 @@ class abtree : public btree_impl::btree_base<btree_impl::memory_policy<Key, Valu
 	typedef btree_impl::bcache_nop<policy_t> cache_t;
 public:
 	abtree(const Aggregate& aggregate = Aggregate(), const Compare& less = Compare())
-		: base_t(cache_ptr_t(new cache_t(policy_t(aggregate, less)))) {}
+		: base_t(cache_ptr_t(new cache_t()), policy_t(aggregate, less)) {}
 	abtree(const abtree& rhs) : base_t(rhs) {}
 };
 

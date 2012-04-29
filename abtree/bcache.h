@@ -39,9 +39,8 @@ class bcache
 	typedef typename Policy::store_t store_t;
 
 public:
-	bcache(store_t& store, size_t max_unwritten_size, size_t max_lru_size, const Policy& policy = Policy())
-		: m_policy(policy)
-		, m_store(store)
+	bcache(store_t& store, size_t max_unwritten_size, size_t max_lru_size)
+		: m_store(store)
 		, m_max_unwritten_size(max_unwritten_size)
 		, m_max_lru_size(max_lru_size)
 		, m_in_write(false)
@@ -113,7 +112,7 @@ public:
 			proxy.m_state = proxy_t::loading; // Set state to loading
 			m_mutex.unlock(); // Lock count should be exactly 0 (pin in nonrecursive)
 			// Load node outside of lock
-			node_t* node = new node_t(m_policy, 0);
+			node_t* node = new node_t(proxy.m_policy, 0);
 			read_node(proxy.m_off, *node);
 			m_mutex.lock();  // Relock
 			proxy.m_ptr = node;
@@ -142,8 +141,6 @@ public:
 		}
 	}
 
-	Policy& get_policy() { return m_policy; }
-
 	ptr_t new_node(node_t* node)
 	{
 		assert(node != NULL);
@@ -161,7 +158,7 @@ public:
 		return r;
 	}
 
-	ptr_t lookup(off_t off, off_t oldest, size_t height)
+	ptr_t lookup(off_t off, off_t oldest, size_t height, Policy& policy)
 	{
 		assert(off != 0);
 		lock_t lock(m_mutex);
@@ -169,7 +166,7 @@ public:
 		typename by_off_t::iterator it = m_by_off.find(off);
 		if (it == m_by_off.end())
 		{
-			r = new proxy_t(*this, off, oldest, height);
+			r = new proxy_t(*this, off, oldest, height, policy);
 			m_oldest.insert(r);
 			m_by_off[off] = r;
 		}
@@ -181,13 +178,13 @@ public:
 		return ptr_t(r);
 	}
 
-	void get_root(const std::string& name, ptr_t& root, size_t& height, size_t& size)
+	void get_root(const std::string& name, ptr_t& root, size_t& height, size_t& size, Policy& policy)
 	{
 		off_t root_node;
 		off_t root_oldest;
 		read_root(name, root_node, root_oldest, height, size);
 		if (root_node != 0)
-			root = lookup(root_node, root_oldest, height);
+			root = lookup(root_node, root_oldest, height, policy);
 	}
 	
 	void sync(const std::string& name, const ptr_t& until, size_t height, size_t size)
@@ -398,7 +395,6 @@ private:
 		}
 	};
 
-	Policy m_policy;		
 	store_t& m_store;
 	mutex_t m_mutex;	
 	size_t m_max_unwritten_size;
@@ -417,14 +413,11 @@ template<class Policy>
 class bcache_nop
 {
 public:
-	bcache_nop(const Policy& policy = Policy()) : m_policy(policy) {}
+	bcache_nop() {}
 	typedef bnode<Policy> node_t;
 	typedef typename apply_policy<Policy>::ptr_t ptr_t;
 	ptr_t new_node(node_t* node) { return ptr_t(node); }
 	void clean_one() {}
-	Policy& get_policy() { return m_policy; }
-private:
-	Policy m_policy;
 };
 
 }

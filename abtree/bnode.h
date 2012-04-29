@@ -128,7 +128,7 @@ private:
 				off_t child_oldest;
 				::deserialize(in, child_loc);
 				::deserialize(in, child_oldest);
-				insert(key, val, cache.lookup(child_loc, child_oldest, m_height - 1));
+				insert(key, val, cache.lookup(child_loc, child_oldest, m_height - 1, m_policy));
 			}
 			else
 				insert(key, val, ptr_t());

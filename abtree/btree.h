@@ -42,23 +42,26 @@ public:
 	typedef typename Policy::value_t mapped_type;
 	typedef std::pair<const key_type, data_t> value_type;
 	typedef size_t size_type;
-	
-	btree_base(cache_ptr_t cache)
+
+	btree_base(cache_ptr_t cache, const Policy& policy = Policy())
 		: m_cache(cache)
+		, m_policy(policy)
 		, m_height(0)
 		, m_size(0)
 	{}
 
-	btree_base(cache_ptr_t cache, const std::string& name)
+	btree_base(cache_ptr_t cache, const std::string& name, const Policy& policy = Policy())
 		: m_cache(cache)
+		, m_policy(policy)
 		, m_height(0)
 		, m_size(0)
 	{
-		m_cache->get_root(name, m_root, m_height, m_size);
+		m_cache->get_root(name, m_root, m_height, m_size, m_policy);
 	}
 
 	btree_base(const btree_base& rhs)
 		: m_cache(rhs.m_cache)
+		, m_policy(rhs.m_policy)
 		, m_root(rhs.m_root)
 		, m_height(rhs.m_height)
 		, m_size(rhs.m_size)
@@ -67,6 +70,7 @@ public:
 	btree_base& operator=(const btree_base& rhs)
 	{
 		m_cache = rhs.m_cache;
+		m_policy = rhs.m_policy;
 		m_root = rhs.m_root;
 		m_height = rhs.m_height;
 		m_size = rhs.m_size;
@@ -88,7 +92,7 @@ public:
 			if (!changed || !exists)
 				return false;
 			// Otherwise, create the initial node
-			m_root = m_cache->new_node(new node_type(m_cache->get_policy(), k, v));
+			m_root = m_cache->new_node(new node_type(m_policy, k, v));
 			m_height++;
 			m_size++;
 			return true;
@@ -124,7 +128,7 @@ public:
 		{
 			// Root just split, make new root
 			m_root = m_cache->new_node(new node_type(
-				m_cache->get_policy(),
+				m_policy,
 				m_height,
 				m_cache->new_node(w_root), 
 				m_cache->new_node(overflow)
@@ -202,9 +206,9 @@ public:
 			if (m_self != other.m_self) return false;
 			if (m_state.is_end() || other.m_state.is_end())
 				return (m_state.is_end() && other.m_state.is_end());
-			if (m_self->m_cache->get_policy().less(m_state.get_key(), other.m_state.get_key()))
+			if (m_self->m_policy.less(m_state.get_key(), other.m_state.get_key()))
 				return false;
-			if (m_self->m_cache->get_policy().less(other.m_state.get_key(), m_state.get_key()))
+			if (m_self->m_policy.less(other.m_state.get_key(), m_state.get_key()))
 				return false;
 			return true;
 		}
@@ -531,6 +535,7 @@ public:
 private:
 
 	cache_ptr_t m_cache;
+	Policy m_policy;
 	node_ptr_type m_root;
 	size_t m_height;
 	size_t m_size;
