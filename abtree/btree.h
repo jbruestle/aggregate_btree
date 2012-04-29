@@ -34,7 +34,6 @@ class btree_base
 	typedef typename apply_policy<Policy>::cache_t cache_t;
 	typedef typename apply_policy<Policy>::cache_ptr_t cache_ptr_t;
 	typedef typename Policy::value_t data_t;
-
 public:
 	typedef bnode<Policy> node_type;
 	typedef typename apply_policy<Policy>::ptr_t node_ptr_type;
@@ -50,14 +49,13 @@ public:
 		, m_size(0)
 	{}
 
-	btree_base(cache_ptr_t cache, const std::string& name, const Policy& policy = Policy())
+	btree_base(cache_ptr_t cache, const node_ptr_type& root, size_t height, size_t size, const Policy& policy = Policy())
 		: m_cache(cache)
 		, m_policy(policy)
-		, m_height(0)
-		, m_size(0)
-	{
-		m_cache->get_root(name, m_root, m_height, m_size, m_policy);
-	}
+		, m_root(root)
+		, m_height(height)
+		, m_size(size)
+	{}
 
 	btree_base(const btree_base& rhs)
 		: m_cache(rhs.m_cache)
@@ -153,7 +151,6 @@ public:
 			m_height = 0;
 			m_size = 0;
 		}
-		m_cache->clean_one();
 		return true;	
 	}
 	
@@ -509,8 +506,6 @@ public:
 		return r;
 	}
 
-	void sync(const std::string& name) { assert(m_cache); m_cache->sync(name, m_root, m_height, m_size); }
-
 #ifdef __BTREE_DEBUG
 	void print() const
 	{
@@ -545,7 +540,7 @@ template<class Value>
 class plus_equal
 {
 public:
-	void operator()(Value& out, const Value& in) { out += in; }
+	void operator()(Value& out, const Value& in) const { out += in; }
 };
 
 template<class Key, class Value, class Aggregate, class Compare>

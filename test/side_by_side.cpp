@@ -97,7 +97,7 @@ class mock_tree
 {
 public:
 	mock_tree(store_t& store, const std::string& name, const mtree_t& mt) 
-		: m_btree(store, name)
+		: m_btree(store.load(name))
 		, m_mtree(mt)
 	{}
 
@@ -113,6 +113,7 @@ public:
 	}
 	
 	const mtree_t& get_mtree() { return m_mtree; }
+	const btree_t& get_btree() { return m_btree; }
 
 	template<class Updater>
 	bool update(int k, const Updater& updater)
@@ -151,11 +152,6 @@ public:
 		return s1; 
 	}
 
-	void sync(const std::string& name)
-	{
-		m_btree.sync(name);
-	}
-	
 	void print()
 	{
 		m_btree.print();
@@ -261,8 +257,7 @@ TEST(side_by_side, disk_tree)
 	printf("Testing btree\n");
 	ASSERT_EQ(btree_impl::g_node_count, size_t(0));
 	system("rm -r /tmp/lame_tree");
-	store_t* store = new store_t(10, 20);
-	store->open("/tmp/lame_tree", true);
+	store_t* store = new store_t("/tmp/lame_tree", true, 10, 20);
 	mock_tree t(*store, "root", mtree_t());
 	std::vector<mock_tree> snaps;
 	for(size_t i = 0; i < k_num_snapshots; i++)
@@ -276,15 +271,15 @@ TEST(side_by_side, disk_tree)
 			if (i % 3000 == 0)
 			{
 				snaps.clear();
-				ASSERT_LT(btree_impl::g_node_count, size_t(30));
+				ASSERT_LE(btree_impl::g_node_count, size_t(30));
 				printf("Closing trr\n");
-				t.sync("root");
+				store->save("root", t.get_btree());
+				store->sync();
 				mtree_t save = t.get_mtree();
 				t.clear();
 				delete store;
 				ASSERT_EQ(btree_impl::g_node_count, size_t(0));
-				store = new store_t(10, 20);
-				store->open("/tmp/lame_tree", false);
+				store = new store_t("/tmp/lame_tree", true, 10, 20);
 				t = mock_tree(*store, "root", save);
 				for(size_t i = 0; i < k_num_snapshots; i++)
 					snaps.push_back(t);
@@ -425,7 +420,7 @@ TEST(side_by_side, disk_tree)
 		if (!t.validate())
 			exit(1);
 	}
-	ASSERT_LT(btree_impl::g_node_count, size_t(30));
+	ASSERT_LE(btree_impl::g_node_count, size_t(30));
 	snaps.clear();
 	while(t.size() > 0)
 	{
@@ -433,7 +428,8 @@ TEST(side_by_side, disk_tree)
 		if (noisy) printf("Erasing %d\n", val);
 		t.update(val, always_erase());
 	}
-	t.sync("root");
+	store->save("root", t.get_btree());
+	store->sync();
 	t.clear();
 	delete store;
 	ASSERT_EQ(btree_impl::g_node_count, size_t(0));

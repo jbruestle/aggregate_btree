@@ -77,7 +77,7 @@ private:
 	{}
 
 	// Create a new proxy from a disk location
-	bnode_proxy(cache_t& store, off_t off, off_t oldest, size_t height, Policy& policy) 
+	bnode_proxy(cache_t& store, off_t off, off_t oldest, size_t height, const Policy& policy) 
 		: m_cache(store)
 		, m_policy(policy)
 		, m_state(unloaded)
@@ -122,7 +122,7 @@ private:
 		loading
 	};
 	cache_t& m_cache;	
-	Policy& m_policy;
+	Policy m_policy;
 	proxy_state m_state;
 	condition_t m_cond;
 	int m_ref_count;

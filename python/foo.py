@@ -2,7 +2,7 @@
 import abtree
 
 store = abtree.Store("/tmp/wtf", True)
-tree = abtree.Tree(store)
+tree = store.new_tree()
 tree['hello'] = 3
 tree['world'] = 5
 tree2 = tree  # Shallow copy
@@ -22,5 +22,17 @@ print "Tree3"
 for (k, v) in tree3:
 	print k, ":", v 
 
-tree.commit()
+store.save("test", tree)
+store.sync()
 
+tree = None
+tree2 = None
+tree3 = None
+store = None
+store = abtree.Store("/tmp/wtf", True)
+tree = store.load("test")
+
+print "Reloaded"
+for (k, v) in tree:
+	print k, ":", v 
+	

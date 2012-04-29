@@ -113,35 +113,38 @@ private:
 	iterator_t m_end;
 };
 
+class py_tree;
+
 class py_store
 {
 public:
-	py_store(const std::string& name, bool create, size_t max_unwritten, size_t max_lru)
-		: m_store(max_unwritten, max_lru)
-	{
-		m_store.open(name, create);
-	}
-
-	~py_store()
-	{
-		m_store.close();
-	}
+	py_store(const std::string& name, bool create, size_t max_unwritten, size_t max_lru, const object& policy)
+		: m_store(name, create, max_unwritten, max_lru, pytree_policy(policy))
+	{}
 
 	store_t& get_store() { return m_store; }
+	boost::shared_ptr<py_tree> load(const std::string& name, const object& policy);
+	void save(const std::string& name, boost::shared_ptr<py_tree> tree);
+	void sync()
+	{
+		m_store.sync();
+	}
 
 private:
 	store_t m_store;
 };
 
+
 class py_tree 
 {
 public:
+	py_tree(const tree_t& tree) : m_tree(tree) {}
+
 	py_tree(boost::shared_ptr<py_store> store, const object& policy)
-		: m_name(extract<std::string>(policy["name"]))
-		, m_tree(store->get_store(), m_name, pytree_policy(policy))
-	{
-		printf("Constructed tree!\n");
-	}
+		: m_tree(store->get_store(), pytree_policy(policy))
+	{}
+
+	const tree_t& get_tree() { return m_tree; }
 
 	object __getitem__(object key) 
 	{ 
@@ -196,11 +199,6 @@ public:
 		return m_tree.size();
 	}
 
-	void sync()
-	{
-		m_tree.sync(m_name);
-	}
-
 	boost::shared_ptr<py_tree> copy()
 	{
 		return boost::shared_ptr<py_tree>(new py_tree(*this));		
@@ -208,13 +206,22 @@ public:
 
 private:
 	py_tree(const py_tree& rhs)
-		: m_name(rhs.m_name)
-		, m_tree(rhs.m_tree)
+		: m_tree(rhs.m_tree)
 	{}
 
-	std::string m_name;
 	tree_t m_tree;
 };
+
+boost::shared_ptr<py_tree> py_store::load(const std::string& name, const object& policy)
+{
+	boost::shared_ptr<py_tree> ptr(new py_tree(m_store.load(name, pytree_policy(policy))));
+	return ptr;
+}
+
+void py_store::save(const std::string& name, boost::shared_ptr<py_tree> tree)
+{
+	m_store.save(name, tree->get_tree());
+}
 
 #define DEF_ITER(pyname, iter_type) class_<iter_type>(pyname, no_init) \
 	.def("__iter__", &iter_type::__iter__) \
@@ -225,9 +232,14 @@ BOOST_PYTHON_MODULE(abtree_c)
 	using namespace boost::python;
 	class_<py_item_iterator>("ItemIterator", no_init)
 		.def("__iter__", &py_item_iterator::__iter__)
-		.def("next", &py_item_iterator::next);
-	class_<py_store, boost::shared_ptr<py_store>, boost::noncopyable >("Store", init<std::string, bool, size_t, size_t>());
-	class_<py_tree, boost::shared_ptr<py_tree>, boost::noncopyable >("Tree", init<boost::shared_ptr<py_store>, object>())
+		.def("next", &py_item_iterator::next)
+		;
+	class_<py_store, boost::shared_ptr<py_store>, boost::noncopyable >("Store", init<std::string, bool, size_t, size_t, const object&>())
+		.def("load", &py_store::load)
+		.def("save", &py_store::save)
+		.def("sync", &py_store::sync)
+		;
+	class_<py_tree, boost::shared_ptr<py_tree>, boost::noncopyable >("Tree", init<boost::shared_ptr<py_store>, const object&>())
 		.def("__getitem__", &py_tree::__getitem__)
 		.def("__setitem__", &py_tree::__setitem__)
 		.def("__delitem__", &py_tree::__delitem__)
@@ -236,6 +248,6 @@ BOOST_PYTHON_MODULE(abtree_c)
 		.def("lower_bound", &py_tree::lower_bound)
 		.def("upper_bound", &py_tree::upper_bound)
 		.def("total", &py_tree::total)
-		.def("sync", &py_tree::sync)
-		.def("copy", &py_tree::copy);
+		.def("copy", &py_tree::copy)
+		;
 }

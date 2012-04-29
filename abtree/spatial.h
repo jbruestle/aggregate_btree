@@ -31,7 +31,7 @@ class spatial_accumulate
 {
 public:
 	template<size_t dims>
-	void operator()(bounding_region<dims>& a, const bounding_region<dims>& b)
+	void operator()(bounding_region<dims>& a, const bounding_region<dims>& b) const
 	{
 		for(size_t i = 0; i < dims; i++)
 		{

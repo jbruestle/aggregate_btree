@@ -1,30 +1,10 @@
 
 import abtree_c
 import collections
-import json
 
 class Tree(collections.MutableMapping):
-	def __init__(self,  *args, **kwargs):
-		if (len(args) == 0 and 'auto_inner' in kwargs):
-			self.inner = kwargs['auto_inner']
-		else:
-			self.__init_normal__(*args, **kwargs)
-
-	def __init_normal__(self, store, 
-		name = "root", 
-		aggregate_func = lambda a,b: None,
-		cmp_func = cmp,
-		serialize_func = json.dumps,
-		deserialize_func = json.loads,
-		auto_inner=None):
-		policy = {
-			'name' : name,
-			'serialize' : serialize_func,
-			'deserialize' : deserialize_func,
-			'cmp' : cmp_func,
-			'aggregate' : aggregate_func
-		}
-		self.inner = abtree_c.Tree(store.store, policy)
+	def __init__(self, inner):
+		self.inner = inner
 	
 	def __getitem__(self, key):
 		print "Doing getitem"
@@ -55,6 +35,6 @@ class Tree(collections.MutableMapping):
 		return self.inner.sync()
 
 	def copy(self):
-		return Tree(auto_inner=self.inner.copy())
+		return Tree(self.inner.copy())
 
 

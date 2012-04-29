@@ -31,6 +31,7 @@ class bnode_cache_ptr
 	typedef bnode<Policy> node_t;
 	typedef bnode_proxy<Policy> proxy_t;
 	typedef pinned_proxy<Policy> pinned_t;
+	friend class bcache<Policy>;
 public:
 	bnode_cache_ptr() : m_proxy(NULL) {}
 	bnode_cache_ptr(proxy_t* proxy) : m_proxy(proxy) {}

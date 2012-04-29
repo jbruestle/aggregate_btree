@@ -66,11 +66,12 @@ def DebugLess(a,b):
 class StatsTree:
 	def __init__(self, path):
 		self.store = abtree.Store(path, True)
-		self.tree = abtree.Tree(self.store, "root", StatsAggregate)
+		self.tree = self.store.load("stats", StatsAggregate)
 		self.counter = 0
 
 	def sync():
-		self.tree.sync()
+		self.store.save("stats", self.tree)
+		self.store.sync()
 
 	def write(self, time, tags, measures):
 		self.tree[[None, time, self.counter]] = measures

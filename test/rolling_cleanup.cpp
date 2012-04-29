@@ -20,18 +20,19 @@ typedef btree_t::store_type store_t;
 
 TEST(rolling, main)
 {
-	store_t store(100, 200);
 	system("rm -rf /tmp/fat_tree");
-	store.open("/tmp/fat_tree", true);
-	btree_t tree(store, "root");
+	store_t store("/tmp/fat_tree", true, 100, 200);
+	btree_t tree = store.load("root");
 	for(size_t i = 0; i < 100; i++)
 		tree[random() % 1000] = random() % 1000;
-	tree.sync("root");
+	store.save("root", tree);
+	store.sync();
 	btree_t copy = tree;
 	for(size_t i = 0; i < 1000; i++)
 	{
 		for(size_t j = 0; j < 20; j++)
 			tree[random() % 1000] = random() % 1000;
-		tree.sync("root");	
+		store.save("root", tree);
+		store.sync();
 	}
 }

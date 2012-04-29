@@ -53,15 +53,15 @@ private:
 	class functor_helper  // Allows policy 'less' to be a normal member function (or a functor)
 	{
 	public:
-		functor_helper(Policy& policy) : m_policy(policy) {}
+		functor_helper(const Policy& policy) : m_policy(policy) {}
 		bool operator()(const okey_t& k1, const key_t& k2) { return m_policy.less(*k1, k2); }
 		bool operator()(const key_t& k1, const okey_t& k2) { return m_policy.less(k1, *k2); }
 	private:
-		Policy& m_policy;
+		const Policy& m_policy;
 	};
 
 	// Create a new 'tree' with one element
-	bnode(Policy& policy, const key_t& k, const value_t& v)
+	bnode(const Policy& policy, const key_t& k, const value_t& v)
 		: m_policy(policy)
 		, m_height(0)      // We are a leaf
 		, m_total(v)       // Total is our one entry
@@ -75,7 +75,7 @@ private:
 	}
 
 	// Make a new root node based on two nodes
-	bnode(Policy& policy, size_t height, const ptr_t& n1, const ptr_t& n2)
+	bnode(const Policy& policy, size_t height, const ptr_t& n1, const ptr_t& n2)
 		: m_policy(policy)
 		, m_height(height)  // Compute our height
 		, m_total(n1->total())  // Compute an initial total
@@ -270,7 +270,7 @@ private:
 	ptr_t& ptrnc(size_t i) { return m_ptrs[i]; } 
 
 public:
-	Policy& get_policy() const { return m_policy; }
+	const Policy& get_policy() const { return m_policy; }
 	size_t size() const { return m_size; }
 	size_t height() const { return m_height; }
 	const key_t& key(size_t i) const { return *m_keys[i]; }
@@ -358,7 +358,7 @@ private:
 
 	// Constructor for an empty bnode
 	// Used during deserialization
-	bnode(Policy& policy, int height) 
+	bnode(const Policy& policy, int height) 
 		: m_policy(policy)
 		, m_height(height)
 		, m_size(0)
@@ -539,7 +539,7 @@ private:
 		return ur_merge;
 	}
 
-	Policy& m_policy;
+	Policy m_policy;
 	int m_height;  // The height of this node (0 = leaf)
 	value_t m_total;  // Total of all down entries, cached
 	size_t m_size;

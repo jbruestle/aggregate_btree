@@ -38,13 +38,48 @@ class bcache
 	typedef abt_lock lock_t;
 	typedef typename Policy::store_t store_t;
 
+	struct tree_info 
+	{
+		tree_info() : height(0), size(0) {}
+		ptr_t root;
+		size_t height;
+		size_t size;
+	};
+
 public:
-	bcache(store_t& store, size_t max_unwritten_size, size_t max_lru_size)
+	bcache(store_t& store, size_t max_unwritten_size, size_t max_lru_size, const Policy& policy = Policy())
 		: m_store(store)
 		, m_max_unwritten_size(max_unwritten_size)
 		, m_max_lru_size(max_lru_size)
+		, m_writes_since_sync(0)
 		, m_in_write(false)
-	{}
+	{
+		std::vector<char> buf;
+		m_store.read_root(buf);
+		if (buf.size() == 0)
+			return;
+		vector_reader io(buf);
+		size_t size;
+		deserialize(io, size);
+		for(size_t i = 0; i < size; i++)
+		{
+			std::string str;
+			deserialize(io, str);
+			off_t off;
+			off_t oldest;
+			size_t height;
+			size_t size;
+			deserialize(io, off);
+			deserialize(io, oldest);
+			deserialize(io, height);
+			deserialize(io, size);
+			tree_info& ti = m_roots[str]; 
+			if (off != 0)
+				ti.root = lookup(off, oldest, height, policy);
+			ti.height = height;
+			ti.size = size;
+		}
+	}
 
 	~bcache()
 	{
@@ -158,7 +193,7 @@ public:
 		return r;
 	}
 
-	ptr_t lookup(off_t off, off_t oldest, size_t height, Policy& policy)
+	ptr_t lookup(off_t off, off_t oldest, size_t height, const Policy& policy)
 	{
 		assert(off != 0);
 		lock_t lock(m_mutex);
@@ -178,38 +213,69 @@ public:
 		return ptr_t(r);
 	}
 
-	void get_root(const std::string& name, ptr_t& root, size_t& height, size_t& size, Policy& policy)
+private:
+	void update_policy(const ptr_t& ptr, const Policy& policy)
 	{
-		off_t root_node;
-		off_t root_oldest;
-		read_root(name, root_node, root_oldest, height, size);
-		if (root_node != 0)
-			root = lookup(root_node, root_oldest, height, policy);
+		if (ptr.m_proxy == NULL) return;  // We are done
+		proxy_t* proxy = ptr.m_proxy;
+		proxy->m_policy = policy;
+		if (proxy->m_ptr != NULL)
+		{
+			node_t* node = (node_t*) proxy->m_ptr;
+			node->m_policy = policy;
+			for(size_t i = 0; i < node->size(); i++)
+			{
+				update_policy(node->ptr(i), policy);
+			}
+		}
 	}
-	
-	void sync(const std::string& name, const ptr_t& until, size_t height, size_t size)
+public:
+
+	btree_base<Policy> load(const std::string& name, const Policy& policy = Policy())
 	{
+		lock_t lock(m_sync_mutex);
+		// Find the entry (or maybe create it)
+		tree_info& ti = m_roots[name]; 
+		// Update the policy as needed
+		{
+			lock_t inner(m_mutex);
+			update_policy(ti.root, policy);
+		}
+		return btree_base<Policy>(this, ti.root, ti.height, ti.size, policy);
+	}
+
+	void save(const std::string& str, const btree_base<Policy>& rhs)
+	{
+		lock_t lock(m_sync_mutex);
+		tree_info& ti = m_roots[str]; 
+		ti.root = rhs.get_root();
+		ti.height = rhs.get_height();
+		ti.size = rhs.size();
+	}
+
+	void sync()
+	{
+		// Only allow one sync at a time
+		lock_t sync_lock(m_sync_mutex);
 		off_t ll;
 		{
 			lock_t lock(m_mutex);
-			// If sync is empty, don't bother
-			if (until == ptr_t()) 
+			// Make a buffer to write into
+                	std::vector<char> buf;
+			vector_writer io(buf);
+			// Write the count of entries
+			serialize(io, m_roots.size());
+			typename roots_t::const_iterator it, itEnd = m_roots.end();
+			// Go over each tree
+			for(it = m_roots.begin(); it != itEnd; ++it)
 			{
-				std::vector<char> nothing;
-				m_store.write_root(name, nothing);
-				return;
+				serialize(io, it->first);  // Write it's name
+				sync_one_root(io, it->second, lock);  // Sync it and write it's root values
 			}
-			// Get the node to sync to
-			proxy_t& proxy = *until.get_proxy();
-			// While it's not written, write more nodes
-			while(proxy.m_state == proxy_t::unwritten)
-				write_front(lock);
-			// Get it's info
-			size_t off = proxy.m_off;
-			size_t oldest = proxy.m_oldest;
-			// Write the root info outside of the lock
+			
+			// Write the final root info outside of the lock
 			m_mutex.unlock();
-			write_root(name, off, oldest, height, size);
+			m_store.write_root(buf);
 			m_mutex.lock();
 			// Remove excess cached nodes
 			while(m_lru.size() > m_max_lru_size)
@@ -221,6 +287,42 @@ public:
 		}
 		// Clear excess written data outside of the lock
 		m_store.clear_before(ll);
+		// Now clean up some nodes
+		size_t to_clean = m_writes_since_sync;
+		for(size_t i = 0; i < to_clean; i++)
+			clean_one();
+		{
+			lock_t lock(m_mutex);
+			// Remove excess cached nodes
+			while(m_lru.size() > m_max_lru_size)
+				reduce_lru(lock);
+		}
+		m_writes_since_sync = 0;
+	}
+
+private:
+	void sync_one_root(vector_writer& out, const tree_info& ti, lock_t& lock)
+	{
+		// If sync is empty, don't bother
+		size_t off = 0;
+		size_t oldest = 0;
+		if (ti.root != ptr_t())
+		{
+			// Get the node to sync to
+			proxy_t& proxy = *ti.root.get_proxy();
+			// While it's not written, write more nodes
+			while(proxy.m_state == proxy_t::unwritten)
+				write_front(lock);
+			// Keep final proxy info
+			off = proxy.m_off;
+			oldest = proxy.m_oldest;
+		}
+
+		// Get it's info
+		serialize(out, off);
+		serialize(out, oldest); 
+		serialize(out, ti.height); 
+		serialize(out, ti.size);
 	}
 
 	void clean_one()
@@ -285,13 +387,13 @@ public:
 		while(m_unwritten.size() > m_max_unwritten_size)
 			write_front(lock);
 	}
-private:
 
 	void write_front(lock_t& lock)
 	{
 		while(m_in_write)
 			m_write_cond.wait(lock);
 		m_in_write = true;
+		m_writes_since_sync++;
 		// Pop front writable node
 		proxy_t& proxy = m_unwritten.front();
 		m_unwritten.pop_front();
@@ -346,17 +448,6 @@ private:
                 return r;
         }
 
-        void write_root(const std::string& name, off_t off, off_t oldest, size_t height, size_t size)
-        {
-                std::vector<char> buf;
-                vector_writer io(buf);
-                serialize(io, off);
-                serialize(io, oldest); 
-                serialize(io, height); 
-                serialize(io, size); 
-                m_store.write_root(name, buf);
-        }
-
 	void read_node(off_t loc, node_t& bnode) 
 	{ 
 		std::vector<char> buf; 
@@ -365,10 +456,11 @@ private:
 		bnode.deserialize(io, *this);
 	}
 
-	void read_root(const std::string& name, off_t& off, off_t& oldest, size_t& height, size_t& size)
+	/*
+	void read_roots()
 	{
 		std::vector<char> buf;
-		m_store.read_root(name, buf);
+		m_store.read_root(buf);
 		if (buf.size() == 0)
 		{
 			off = 0;
@@ -376,12 +468,12 @@ private:
 			height = 0;
 			return;
 		}
-		vector_reader io(buf);
 		deserialize(io, off);
 		deserialize(io, oldest);
 		deserialize(io, height);
 		deserialize(io, size);
 	}
+	*/
 
 	struct cmp_oldest
 	{
@@ -397,8 +489,10 @@ private:
 
 	store_t& m_store;
 	mutex_t m_mutex;	
+	mutex_t m_sync_mutex;	
 	size_t m_max_unwritten_size;
 	size_t m_max_lru_size;
+	size_t m_writes_since_sync;
 	bool m_in_write;
 	abt_condition m_write_cond;
 	boost::intrusive::list<proxy_t> m_unwritten;
@@ -407,6 +501,8 @@ private:
 	by_off_t m_by_off;
 	typedef std::set<proxy_t*, cmp_oldest> oldest_t;
 	oldest_t m_oldest;
+	typedef std::map<std::string, tree_info> roots_t;
+	roots_t m_roots;
 };
 
 template<class Policy>
@@ -417,7 +513,6 @@ public:
 	typedef bnode<Policy> node_t;
 	typedef typename apply_policy<Policy>::ptr_t ptr_t;
 	ptr_t new_node(node_t* node) { return ptr_t(node); }
-	void clean_one() {}
 };
 
 }

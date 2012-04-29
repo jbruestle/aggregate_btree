@@ -17,7 +17,7 @@ private:
 class max_int
 {
 public:
-	void operator()(int& a, const int& b) { a = std::max(a,b); }
+	void operator()(int& a, const int& b) const { a = std::max(a,b); }
 };
 
 TEST(walker, basic)
