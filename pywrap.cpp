@@ -5,12 +5,29 @@ using namespace boost::python;
 
 #include "abtree/disk_abtree.h"
 
+struct obj_count
+{
+	obj_count() 
+		: count(1)
+	{}
+	obj_count(size_t _count)
+		: count(_count)
+	{}
+	obj_count(const object& _obj) 
+		: obj(_obj)
+		, count(1)
+	{}
+
+	object obj;
+	size_t count;
+};
+
 class pytree_policy
 {
 public:
 	static const size_t node_size = 20;
         typedef object key_type;
-        typedef object mapped_type;
+        typedef obj_count mapped_type;
 
 	pytree_policy()
 	{}
@@ -24,23 +41,26 @@ public:
 		return extract<int>(m_policy["cmp"](a, b)) < 0; 
 	}
 
-	void aggregate(object& out, const object& in) const 
+	void aggregate(obj_count& out, const obj_count& in) const 
 	{
-		out = m_policy["aggregate"](out, in); 
+		out.count += in.count;
+		out.obj = m_policy["aggregate"](out.obj, in.obj); 
 	}
 
-	void serialize(writable& out, const object& k, const object& v) const 
+	void serialize(writable& out, const object& k, const obj_count& v) const 
 	{
 		::serialize(out, extract<std::string>(m_policy["serialize"](k)));
-		::serialize(out, extract<std::string>(m_policy["serialize"](v)));
+		::serialize(out, v.count);
+		::serialize(out, extract<std::string>(m_policy["serialize"](v.obj)));
 	}
-	void deserialize(readable& in, object& k, object& v) const 
+	void deserialize(readable& in, object& k, obj_count& v) const 
 	{ 
 		std::string tmp;
 		::deserialize(in, tmp); 
 		k = m_policy["deserialize"](tmp);
+		::deserialize(in, v.count); 
 		::deserialize(in, tmp); 
-		v = m_policy["deserialize"](tmp);
+		v.obj = m_policy["deserialize"](tmp);
 	}
 private:
 	object m_policy;
@@ -146,7 +166,7 @@ public:
 
 	const tree_t& get_tree() { return m_tree; }
 
-	object __getitem__(const object& key) 
+	object getitem(const object& key) 
 	{ 
 		object r;
 		iterator_t it = m_tree.find(key);
@@ -155,20 +175,20 @@ public:
 			PyErr_SetString(PyExc_KeyError, "no such key");
 			throw boost::python::error_already_set();
 		}
-		return it->second;
+		return it->second.obj;
 	}
 
-	void __setitem__(const object& key, const object& value) 
+	void setitem(const object& key, const object& value) 
 	{ 
 		m_tree[key] = value;
 	}
 
-	void __delitem__(const object& key)
+	void delitem(const object& key)
 	{
 		m_tree.erase(key);
 	}
 
-	py_item_iterator __iter__(const object& start, const object& end)
+	py_item_iterator iter(const object& start, const object& end)
 	{
 		if (start == object())
 		{
@@ -191,22 +211,36 @@ public:
 		if (start == object())
 		{
 			if (end == object())
-				return m_tree.total(m_tree.begin(), m_tree.end(), base);
+				return m_tree.total(m_tree.begin(), m_tree.end(), base).obj;
 			else
-				return m_tree.total(m_tree.begin(), m_tree.upper_bound(end), base);
+				return m_tree.total(m_tree.begin(), m_tree.upper_bound(end), base).obj;
 		}
 		else
 		{
 			if (end == object())
-				return m_tree.total(m_tree.lower_bound(start), m_tree.end(), base);
+				return m_tree.total(m_tree.lower_bound(start), m_tree.end(), base).obj;
 			else
-				return m_tree.total(m_tree.lower_bound(start), m_tree.upper_bound(end), base);
+				return m_tree.total(m_tree.lower_bound(start), m_tree.upper_bound(end), base).obj;
 		}
 	}
-
-	size_t __len__()
+	
+	size_t len(const object& start, const object& end)
 	{
-		return m_tree.size();
+		obj_count base(0);
+		if (start == object())
+		{
+			if (end == object())
+				return m_tree.total(m_tree.begin(), m_tree.end(), base).count;
+			else
+				return m_tree.total(m_tree.begin(), m_tree.upper_bound(end), base).count;
+		}
+		else
+		{
+			if (end == object())
+				return m_tree.total(m_tree.lower_bound(start), m_tree.end(), base).count;
+			else
+				return m_tree.total(m_tree.lower_bound(start), m_tree.upper_bound(end), base).count;
+		}
 	}
 
 	boost::shared_ptr<py_tree> copy()
@@ -250,11 +284,11 @@ BOOST_PYTHON_MODULE(abtree_c)
 		.def("sync", &py_store::sync)
 		;
 	class_<py_tree, boost::shared_ptr<py_tree>, boost::noncopyable >("Tree", init<boost::shared_ptr<py_store>, const object&>())
-		.def("__getitem__", &py_tree::__getitem__)
-		.def("__setitem__", &py_tree::__setitem__)
-		.def("__delitem__", &py_tree::__delitem__)
-		.def("__iter__", &py_tree::__iter__)
-		.def("__len__", &py_tree::__len__)
+		.def("getitem", &py_tree::getitem)
+		.def("setitem", &py_tree::setitem)
+		.def("delitem", &py_tree::delitem)
+		.def("iter", &py_tree::iter)
+		.def("len", &py_tree::len)
 		.def("total", &py_tree::total)
 		.def("copy", &py_tree::copy)
 		;

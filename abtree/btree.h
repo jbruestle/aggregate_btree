@@ -500,8 +500,11 @@ public:
 
 	data_t total(const const_iterator& start, const const_iterator& end, const data_t base = data_t())
 	{
-		data_t r = base;
+		if (start == end)
+			return base;
 		const_iterator it = start;
+		data_t r = it->second;
+		it++;
 		accumulate_until(it, r, end, forever_functor());
 		return r;
 	}

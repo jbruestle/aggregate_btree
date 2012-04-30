@@ -17,18 +17,19 @@ class Store:
 		}
 		self.store = abtree_c.Store(name, create, max_write_cache, max_read_cache, self.policy)
 
-	def new_table(self, aggregate_func = lambda a,b: None, cmp_func = cmp):
+	def new_table(self, aggregate_func = lambda a,b: None, empty_total = None, cmp_func = cmp):
 		new_policy = {
 			'serialize' : self.policy['serialize'],
 			'deserialize' : self.policy['deserialize'],
 			'cmp' : cmp_func,
 			'aggregate' : aggregate_func
 		}
-		return Table.Table(abtree_c.Tree(self.store, new_policy), cmp_func, None, None)
+		return Table.Table(abtree_c.Tree(self.store, new_policy), cmp_func, empty_total, None, None)
 	
 	def load(self, 
 		name, 
 		aggregate_func = lambda a,b: None, 
+		empty_total = None,
 		cmp_func = cmp):
 		new_policy = {
 			'serialize' : self.policy['serialize'],
@@ -36,7 +37,7 @@ class Store:
 			'cmp' : cmp_func,
 			'aggregate' : aggregate_func
 		}
-		return Table.Table(self.store.load(name, new_policy), cmp_func, None, None)
+		return Table.Table(self.store.load(name, new_policy), cmp_func, empty_total, None, None)
 
 	def save(self, name, table):
 		self.store.save(name, table.inner)
