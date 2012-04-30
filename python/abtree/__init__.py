@@ -1,6 +1,6 @@
 
-__all__ = ["Tree", "Store"]
+__all__ = ["Table", "Store"]
 
-from Tree import Tree
+from Table import Table
 from Store import Store
 

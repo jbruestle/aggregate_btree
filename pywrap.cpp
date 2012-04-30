@@ -103,7 +103,7 @@ public:
 			PyErr_SetString(PyExc_StopIteration,"done iterating");
 			throw boost::python::error_already_set();
 		}
-		object r = make_tuple(m_it->first, m_it->second);
+		object r =m_it->first;
 		m_it++;
 		return r; 
 	}
@@ -146,7 +146,7 @@ public:
 
 	const tree_t& get_tree() { return m_tree; }
 
-	object __getitem__(object key) 
+	object __getitem__(const object& key) 
 	{ 
 		object r;
 		iterator_t it = m_tree.find(key);
@@ -158,40 +158,50 @@ public:
 		return it->second;
 	}
 
-	void __setitem__(object key, object value) 
+	void __setitem__(const object& key, const object& value) 
 	{ 
 		m_tree[key] = value;
 	}
 
-	void __delitem__(object key)
+	void __delitem__(const object& key)
 	{
 		m_tree.erase(key);
 	}
 
-	py_item_iterator __iter__()
+	py_item_iterator __iter__(const object& start, const object& end)
 	{
-		return py_item_iterator(m_tree.begin(), m_tree.end());
+		if (start == object())
+		{
+			if (end == object())
+				return py_item_iterator(m_tree.begin(), m_tree.end());
+			else
+				return py_item_iterator(m_tree.begin(), m_tree.upper_bound(end));
+		}
+		else
+		{
+			if (end == object())
+				return py_item_iterator(m_tree.lower_bound(start), m_tree.end());
+			else
+				return py_item_iterator(m_tree.lower_bound(start), m_tree.upper_bound(end));
+		}
 	}
 
-	object lower_bound(object key)
+	object total(const object& start, const object& end, const object& base)
 	{
-		iterator_t it = m_tree.lower_bound(key);
-		if (it == m_tree.end())
-			return object();
-		return it->first;
-	}
-
-	object upper_bound(object key)
-	{
-		iterator_t it = m_tree.upper_bound(key);
-		if (it == m_tree.end())
-			return object();
-		return it->first;
-	}
-
-	object total(object start, object end)
-	{
-		return m_tree.total(m_tree.lower_bound(start), m_tree.lower_bound(end));
+		if (start == object())
+		{
+			if (end == object())
+				return m_tree.total(m_tree.begin(), m_tree.end(), base);
+			else
+				return m_tree.total(m_tree.begin(), m_tree.upper_bound(end), base);
+		}
+		else
+		{
+			if (end == object())
+				return m_tree.total(m_tree.lower_bound(start), m_tree.end(), base);
+			else
+				return m_tree.total(m_tree.lower_bound(start), m_tree.upper_bound(end), base);
+		}
 	}
 
 	size_t __len__()
@@ -245,8 +255,6 @@ BOOST_PYTHON_MODULE(abtree_c)
 		.def("__delitem__", &py_tree::__delitem__)
 		.def("__iter__", &py_tree::__iter__)
 		.def("__len__", &py_tree::__len__)
-		.def("lower_bound", &py_tree::lower_bound)
-		.def("upper_bound", &py_tree::upper_bound)
 		.def("total", &py_tree::total)
 		.def("copy", &py_tree::copy)
 		;

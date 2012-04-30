@@ -498,9 +498,9 @@ public:
 		bool operator()(const data_t& total) const { return false; }
 	};
 
-	data_t total(const const_iterator& start, const const_iterator& end)
+	data_t total(const const_iterator& start, const const_iterator& end, const data_t base = data_t())
 	{
-		data_t r = data_t();
+		data_t r = base;
 		const_iterator it = start;
 		accumulate_until(it, r, end, forever_functor());
 		return r;
