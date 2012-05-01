@@ -2,6 +2,10 @@
 import stat_tree 
 
 tree = stat_tree.StatsTree('/tmp/thetree')
+tree.write(0, ['foobar'], {'a': 0.1, 'c': 1, 'b': 1})
+tree.write(1, ['foobar'], {'a': 0.1, 'c': 1, 'b': 2})
+tree.write(2, ['foobar'], {'a': 0.1, 'c': 100, 'b': 3})
+tree.write(3, ['foobar'], {'a': 0.1, 'c': 1, 'b': 4})
 tree.write(0.0, ['tag1'], {'m1':500, 'm2':200})
 tree.write(0.0, ['tag2'], {'m1':400, 'm3':300})
 tree.write(1.0, ['tag1'], {'m1':300, 'm2':200})
@@ -14,6 +18,10 @@ tree.write(4.0, ['tag1'], {'m1':400, 'm2':700})
 tree.write(4.0, ['tag2'], {'m1':500, 'm3':300})
 tree.write(5.0, ['tag1'], {'m1':600, 'm2':200})
 tree.write(5.0, ['tag2'], {'m1':700, 'm3':100})
+tree.write(0, ['foobar'], {'a': 0.1, 'c': 1, 'b': 1})
+tree.write(1, ['foobar'], {'a': 0.1, 'c': 1, 'b': 2})
+tree.write(2, ['foobar'], {'a': 0.1, 'c': 100, 'b': 3})
+tree.write(3, ['foobar'], {'a': 0.1, 'c': 1, 'b': 4})
 
 print "Getting tags" 
 print tree.tags()

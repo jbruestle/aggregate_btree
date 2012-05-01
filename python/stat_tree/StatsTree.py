@@ -78,7 +78,6 @@ class StatsTree:
 		all_tags = []
 		pair = self.tree.lower_bound([None, '', 0])
 		while pair != None:
-			print "Adding tag", pair[0]
 			all_tags += [pair[0]]
 			pair = self.tree.lower_bound([pair[0], '', 0])
 	
