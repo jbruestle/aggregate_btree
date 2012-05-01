@@ -61,6 +61,14 @@ class Table(collections.MutableMapping):
 			result_start = self.end
 		return (new_start, new_end)
 
+	def lower_bound(self, key):
+		it = self.inner.iter(key, None)
+		try:
+			return it.next()
+		except StopIteration:
+			pass
+		return None
+
 	def total(self, base = None):
 		if base == None:
 			base = self.empty_total

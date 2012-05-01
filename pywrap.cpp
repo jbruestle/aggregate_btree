@@ -1,6 +1,7 @@
 
 #include <boost/python.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/enable_shared_from_this.hpp>
 using namespace boost::python;
 
 #include "abtree/disk_abtree.h"
@@ -135,7 +136,7 @@ private:
 
 class py_tree;
 
-class py_store
+class py_store : public boost::enable_shared_from_this<py_store>
 {
 public:
 	py_store(const std::string& name, bool create, size_t max_unwritten, size_t max_lru, const object& policy)
@@ -158,10 +159,14 @@ private:
 class py_tree 
 {
 public:
-	py_tree(const tree_t& tree) : m_tree(tree) {}
+	py_tree(const boost::shared_ptr<py_store>& store, const tree_t& tree) 
+		: m_store(store)
+		, m_tree(tree) 
+	{}
 
-	py_tree(boost::shared_ptr<py_store> store, const object& policy)
-		: m_tree(store->get_store(), pytree_policy(policy))
+	py_tree(const boost::shared_ptr<py_store>& store, const object& policy)
+		: m_store(store)
+		, m_tree(store->get_store(), pytree_policy(policy))
 	{}
 
 	const tree_t& get_tree() { return m_tree; }
@@ -250,15 +255,17 @@ public:
 
 private:
 	py_tree(const py_tree& rhs)
-		: m_tree(rhs.m_tree)
+		: m_store(rhs.m_store)
+		, m_tree(rhs.m_tree)
 	{}
 
+	boost::shared_ptr<py_store> m_store;
 	tree_t m_tree;
 };
 
 boost::shared_ptr<py_tree> py_store::load(const std::string& name, const object& policy)
 {
-	boost::shared_ptr<py_tree> ptr(new py_tree(m_store.load(name, pytree_policy(policy))));
+	boost::shared_ptr<py_tree> ptr(new py_tree(shared_from_this(), m_store.load(name, pytree_policy(policy))));
 	return ptr;
 }
 
@@ -283,7 +290,7 @@ BOOST_PYTHON_MODULE(abtree_c)
 		.def("save", &py_store::save)
 		.def("sync", &py_store::sync)
 		;
-	class_<py_tree, boost::shared_ptr<py_tree>, boost::noncopyable >("Tree", init<boost::shared_ptr<py_store>, const object&>())
+	class_<py_tree, boost::shared_ptr<py_tree>, boost::noncopyable >("Tree", init<const boost::shared_ptr<py_store>&, const object&>())
 		.def("getitem", &py_tree::getitem)
 		.def("setitem", &py_tree::setitem)
 		.def("delitem", &py_tree::delitem)
