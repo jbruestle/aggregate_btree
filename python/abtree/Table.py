@@ -73,6 +73,9 @@ class Table(collections.MutableMapping):
 		if base == None:
 			base = self.empty_total
 		return self.inner.total(self.start, self.end, base)
+	
+	def key_at_index(self, index):
+		return self.inner.key_at_index(self.start, self.end, index)
 
 	def copy(self):
 		return Table(self.inner.copy(), self.cmp_func, self.empty_total, self.start, self.end)

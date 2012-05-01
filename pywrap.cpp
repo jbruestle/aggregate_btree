@@ -155,6 +155,17 @@ private:
 	store_t m_store;
 };
 
+class index_functor
+{
+public:
+	index_functor(size_t until) : m_until(until) {}
+	bool operator()(const obj_count& o) const
+	{
+		return o.count > m_until;
+	}
+private:
+	size_t m_until;
+};
 
 class py_tree 
 {
@@ -195,57 +206,37 @@ public:
 
 	py_item_iterator iter(const object& start, const object& end)
 	{
-		if (start == object())
-		{
-			if (end == object())
-				return py_item_iterator(m_tree.begin(), m_tree.end());
-			else
-				return py_item_iterator(m_tree.begin(), m_tree.upper_bound(end));
-		}
-		else
-		{
-			if (end == object())
-				return py_item_iterator(m_tree.lower_bound(start), m_tree.end());
-			else
-				return py_item_iterator(m_tree.lower_bound(start), m_tree.upper_bound(end));
-		}
+		range_t range = make_range(start, end);
+		return py_item_iterator(range.first, range.second);
 	}
 
 	object total(const object& start, const object& end, const object& base)
 	{
-		if (start == object())
-		{
-			if (end == object())
-				return m_tree.total(m_tree.begin(), m_tree.end(), base).obj;
-			else
-				return m_tree.total(m_tree.begin(), m_tree.upper_bound(end), base).obj;
-		}
-		else
-		{
-			if (end == object())
-				return m_tree.total(m_tree.lower_bound(start), m_tree.end(), base).obj;
-			else
-				return m_tree.total(m_tree.lower_bound(start), m_tree.upper_bound(end), base).obj;
-		}
+		range_t range = make_range(start, end);
+		return m_tree.total(range.first, range.second, base).obj;
 	}
 	
 	size_t len(const object& start, const object& end)
 	{
 		obj_count base(0);
-		if (start == object())
-		{
-			if (end == object())
-				return m_tree.total(m_tree.begin(), m_tree.end(), base).count;
-			else
-				return m_tree.total(m_tree.begin(), m_tree.upper_bound(end), base).count;
-		}
-		else
-		{
-			if (end == object())
-				return m_tree.total(m_tree.lower_bound(start), m_tree.end(), base).count;
-			else
-				return m_tree.total(m_tree.lower_bound(start), m_tree.upper_bound(end), base).count;
-		}
+		range_t range = make_range(start, end);
+		return m_tree.total(range.first, range.second, base).count;
+	}
+
+	object key_at_index(const object& start, const object& end, off_t index)
+	{
+		if (index < 0) throw_index_error();  // No negative indexes
+		range_t range = make_range(start, end);
+		if (range.first == range.second) 
+			throw_index_error(); // If no range to walk over, give up early
+		if (index == 0) 
+			return range.first->first;  // If we start, return early to avoid null constructed obj_count
+		obj_count total = range.first->second;  // Get first value for accumulator
+		range.first++;  // Skip over it
+		m_tree.accumulate_until(range.first, total, range.second, index_functor(index));  // Do main walk
+		if (range.first == range.second)
+			 throw_index_error(); // If I ran out of elements, fail
+		return range.first->first; // Otherwise, return key
 	}
 
 	boost::shared_ptr<py_tree> copy()
@@ -254,6 +245,29 @@ public:
 	}
 
 private:
+	void throw_index_error()
+	{
+		PyErr_SetString(PyExc_IndexError, "index out of range");
+		throw boost::python::error_already_set();
+	}
+	typedef std::pair<iterator_t, iterator_t> range_t;
+	range_t make_range(const object& start, const object& end)
+	{
+		if (start == object())
+		{
+			if (end == object())
+				return std::make_pair(m_tree.begin(), m_tree.end());
+			else
+				return std::make_pair(m_tree.begin(), m_tree.lower_bound(end));
+		}
+		else
+		{
+			if (end == object())
+				return std::make_pair(m_tree.lower_bound(start), m_tree.end());
+			else
+				return std::make_pair(m_tree.lower_bound(start), m_tree.lower_bound(end));
+		}
+	}
 	py_tree(const py_tree& rhs)
 		: m_store(rhs.m_store)
 		, m_tree(rhs.m_tree)
@@ -297,6 +311,7 @@ BOOST_PYTHON_MODULE(abtree_c)
 		.def("iter", &py_tree::iter)
 		.def("len", &py_tree::len)
 		.def("total", &py_tree::total)
+		.def("key_at_index", &py_tree::key_at_index)
 		.def("copy", &py_tree::copy)
 		;
 }

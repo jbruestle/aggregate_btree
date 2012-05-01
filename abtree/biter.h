@@ -151,7 +151,10 @@ public:
 
 			// If we are about to walk off the whole tree, we are at end
 			if (cur == 0)
+			{
+				set_end();
 				return;
+			}
 
 			cur--;
 			m_iters[cur]++;  // Skip 'current' since I handled it already
