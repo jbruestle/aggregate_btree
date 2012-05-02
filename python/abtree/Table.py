@@ -1,6 +1,7 @@
 
 import abtree_c
 import collections
+import _SeqView
 
 class Table(collections.MutableMapping):
 	def __init__(self, inner, cmp_func, empty_total, start, end):
@@ -79,5 +80,14 @@ class Table(collections.MutableMapping):
 
 	def copy(self):
 		return Table(self.inner.copy(), self.cmp_func, self.empty_total, self.start, self.end)
+
+	def keys(self):
+		return _SeqView._SeqView(self, lambda k,v: k, 1)
+
+	def values(self):
+		return _SeqView._SeqView(self, lambda k,v: v, 1)
+
+	def items(self):
+		return _SeqView._SeqView(self, lambda k,v: (k,v), 1)
 
 
