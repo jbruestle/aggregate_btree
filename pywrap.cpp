@@ -7,6 +7,7 @@ using namespace boost::python;
 #include "abtree/abtree.h"
 #include "abtree/disk_abtree.h"
 #include "abtree/tree_walker.h"
+#include "abtree/hilbert.h"
 
 struct obj_count
 {
@@ -390,10 +391,29 @@ void py_store::save(const std::string& name, boost::shared_ptr<py_disk_tree> tre
 	m_store.save(name, tree->get_tree());
 }
 
-
-#define DEF_ITER(pyname, iter_type) class_<iter_type>(pyname, no_init) \
-	.def("__iter__", &iter_type::__iter__) \
-	.def("next", &iter_type::next)
+class hilbert_wrap
+{
+public:
+	static int hilbert_cmp(boost::python::list& a, boost::python::list& b)
+	{
+		if (len(a) != len(b))
+		{
+			PyErr_SetString(PyExc_ValueError, "Hilbert comparison of unequal dimensions");
+			throw boost::python::error_already_set();
+		}
+		size_t size = len(a);
+		double* va = new double[size];
+		double* vb = new double[size];
+		for(size_t i = 0; i < size; i++)
+		{
+			va[i] = extract<double>(a[i]);
+			vb[i] = extract<double>(b[i]);
+		}
+		return hilbert_ieee_cmp(size, va, vb);
+		delete va;
+		delete vb;
+	}
+};
 
 BOOST_PYTHON_MODULE(abtree_c)
 {
@@ -444,5 +464,9 @@ BOOST_PYTHON_MODULE(abtree_c)
 		.def("find", &py_memory_tree::find)
 		.def("aggregate_until", &py_memory_tree::aggregate_until)
 		.def("copy", &py_memory_tree::copy)
+		;
+	class_<hilbert_wrap>("Hilbert", no_init)
+		.def("cmp", &hilbert_wrap::hilbert_cmp)
+		.staticmethod("cmp")
 		;
 }
