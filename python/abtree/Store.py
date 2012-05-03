@@ -24,7 +24,7 @@ class Store:
 			'cmp' : cmp_func,
 			'aggregate' : aggregate_func
 		}
-		return Table.Table(abtree_c.Tree(self.store, new_policy), cmp_func, empty_total, None, None)
+		return Table._Table(abtree_c.DiskTree(self.store, new_policy), cmp_func, empty_total, None, None)
 	
 	def load(self, 
 		name, 
@@ -37,7 +37,7 @@ class Store:
 			'cmp' : cmp_func,
 			'aggregate' : aggregate_func
 		}
-		return Table.Table(self.store.load(name, new_policy), cmp_func, empty_total, None, None)
+		return Table._Table(self.store.load(name, new_policy), cmp_func, empty_total, None, None)
 
 	def save(self, name, table):
 		self.store.save(name, table.inner)

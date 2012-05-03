@@ -3,7 +3,7 @@ import abtree_c
 import collections
 import _SeqView
 
-class Table(collections.MutableMapping):
+class _Table(collections.MutableMapping):
 	def __init__(self, inner, cmp_func, empty_total, start, end):
 		self.inner = inner
 		self.cmp_func = cmp_func
@@ -16,7 +16,7 @@ class Table(collections.MutableMapping):
 			if key.step != None:
 				raise TypeError("Step not allowed in slices")
 			(new_start, new_end) = self.__intersect_range(key.start, key.stop)
-			return Table(self.inner, self.cmp_func, self.empty_total, new_start, new_end)
+			return _Table(self.inner, self.cmp_func, self.empty_total, new_start, new_end)
 		elif self.__in_range(key):
 			return self.inner.getitem(key)
 		return None
@@ -79,7 +79,7 @@ class Table(collections.MutableMapping):
 		return self.inner.key_at_index(self.start, self.end, index)
 
 	def copy(self):
-		return Table(self.inner.copy(), self.cmp_func, self.empty_total, self.start, self.end)
+		return _Table(self.inner.copy(), self.cmp_func, self.empty_total, self.start, self.end)
 
 	def keys(self):
 		return _SeqView._SeqView(self, lambda k,v: k, 1)
@@ -89,5 +89,18 @@ class Table(collections.MutableMapping):
 
 	def items(self):
 		return _SeqView._SeqView(self, lambda k,v: (k,v), 1)
+
+	def find(self, func):
+		return self.inner.find(func)
+
+	def aggregate_until(self, func):
+		return self.inner.aggregate_until(self.start, self.end, func) 
+
+def Table(aggregate_func = lambda a,b: None, empty_total = None, cmp_func = cmp):
+	policy = {
+		'cmp' : cmp_func,
+		'aggregate' : aggregate_func
+	}
+	return _Table(abtree_c.MemoryTree(policy), cmp_func, empty_total, None, None)
 
 

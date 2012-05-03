@@ -465,6 +465,7 @@ public:
 
 	size_t get_height() const { return m_height; }
 	const node_ptr_type& get_root() const { return m_root; }
+	const Policy& get_policy() const { return m_policy; }
 	
 	size_t count(const key_type& x)
 	{

@@ -87,7 +87,7 @@ private:
 		//printf("forward up: m_curh = %d,m_idx[m_curh]=%d\n", m_curh, m_idx[m_curh]);
 		m_idx[m_curh]++;
 		// While we are at the end at the current level
-		while(m_idx[m_curh] == m_ptr[m_curh]->size())
+		while(m_idx[m_curh] == (int) m_ptr[m_curh]->size())
 		{
 			// Go up one
 			//printf("  forward up: m_curh = %d,m_idx[m_curh]=%d\n", m_curh, m_idx[m_curh]);
