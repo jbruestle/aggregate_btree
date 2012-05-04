@@ -18,6 +18,8 @@
 #include <stdlib.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <arpa/inet.h>
+//#include <bzlib.h>
 #include "abtree/file_bstore.h"
 #include "abtree/serial.h"
 
@@ -80,6 +82,11 @@ off_t file_bstore::write_node(const std::vector<char>& record)
 { 
 	if (m_cur_slab == NULL)
 		throw io_exception("file_store is not open");
+	//unsigned int outlen = 101 * record.size() / 100 + 600;
+	//std::vector<char> outbuf(4 + outlen);
+	//*((uint32_t *) (outbuf.data())) = htonl(record.size());
+	//BZ2_bzBuffToBuffCompress(&outbuf[4], &outlen, const_cast<char*>(&record[0]), record.size(), 1, 0, 0);
+	//outbuf.resize(4 + outlen);
 	lock_t lock(m_mutex); 
 	return write_record('N', record); 
 }
@@ -96,8 +103,14 @@ void file_bstore::read_node(off_t which, std::vector<char>& record)
 { 
 	if (m_cur_slab == NULL)
 		throw io_exception("file_store is not open");
+	//std::vector<char> inbuf;
+	//{
 	lock_t lock(m_mutex);
 	safe_read_record(which, 'N', record);
+	//}
+	//unsigned int destlen = ntohl(*((uint32_t *) (inbuf.data())));
+	//record.resize(destlen);
+	//BZ2_bzBuffToBuffDecompress(&record[0], &destlen, &inbuf[4], inbuf.size() - 4, 0, 0);
 }
 
 void file_bstore::read_root(std::vector<char>& record)

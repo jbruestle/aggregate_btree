@@ -41,7 +41,7 @@ btree_ext = Extension('abtree_c',
 		'tiny_boost/libs/smart_ptr/src/sp_debug_hooks.cpp',
 	],
 	
-	libraries=['pthread', 'm'],
+	libraries=['pthread', 'm', 'bz2'],
 	include_dirs=['tiny_boost', '.']
 )
 

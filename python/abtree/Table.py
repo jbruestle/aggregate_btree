@@ -10,6 +10,13 @@ class _Table(collections.MutableMapping):
 		self.empty_total = empty_total
 		self.start = start
 		self.end = end
+
+	def __contains__(self, key):
+		try:
+			self.inner.getitem(key)
+			return True;
+		except KeyError:
+			return False
 	
 	def __getitem__(self, key):
 		if isinstance(key, slice):

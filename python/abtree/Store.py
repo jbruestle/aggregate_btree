@@ -9,8 +9,8 @@ class Store:
 		create = True, 
 		serialize_func = json.dumps,
 		deserialize_func = json.loads,
-		max_write_cache = 1000, 
-		max_read_cache = 10000):
+		max_write_cache = 10000, 
+		max_read_cache = 20000):
 		self.policy = {
 			'serialize' : serialize_func,
 			'deserialize' : deserialize_func
