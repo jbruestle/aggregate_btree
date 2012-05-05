@@ -45,20 +45,48 @@ sudo python ./setup.py install
 
 ### Python Tutorial
 
-An abtree looks like a very special python dictionary, which is backed by some [files](#storage) on disk.  The simpliest use case would be as follows
+An abtree Table looks like a very special python dictionary, which may optionally be backed by some [files](#storage) on disk.  The simpliest use case would be as follows
 ````python
 import abtree
 
-store = abtree.Store("/some/dir")  # Define a storage location (create if needed)
-tree = abtree.Tree(store)  # Load/create the tree in that location
+t = abtree.Table()  #  Create an empty in memory table
+t['foo'] = 6
+t['bar'] = 5
+t['baz'] = 10
+t['quux'] = 10
 ````
 
-This makes a tree, which acts just like a python dictionary (in fact it's a [MutableMapping](http://docs.python.org/library/collections.html#collections-abstract-base-classes)).  For example, you could do the following:
+The table supports a superset of the operations of a python dictionary. In fact it's a [MutableMapping](http://docs.python.org/library/collections.html#collections-abstract-base-classes) However, unlike a dictionary, it is *always* in sorted order, by key, so using the previous example:
+
 ````python
-tree["key"] ="value"  # Add/change a key/value pair
-for x in tree.keys():  # Iterate over all the keys
-    print x
+>>> print t.keys() 
+['bar', 'baz', 'foo', 'quux']
 ````
+
+Note that the default ordering for a table is that of cmp(), but this can be overridden.  Unlike a normal dictionary, Tables are also slicable, by key.  That means it is possible to grab any range of the table.  For example:
+
+````python
+>>> t = abtree.Table()
+>>> t['a'] = 3
+>>> t['b'] = 10
+>>> t['c'] = 4
+>>> t['d'] = 5
+>>> t['e'] = 10
+>>> t['f'] = 6
+>>> t['g'] = 6
+>>> t['b':'f']
+>>> print t['b':'f']
+{'b': 10, 'c': 4, 'd': 5, 'e': 10}
+>>> print t['bar':'foo']
+{'c': 4, 'd': 5, 'e': 10, 'f': 6}
+>>> print t[:'c']
+{'a': 3, 'b': 10}
+>>> print t['f':]
+{'f': 6, 'g': 6}
+````
+
+Note that just like regular slicing, the first element is the inclusive start, and the second element is the exclusive end, and that either can be left out.  That is, the element include all of those such that: start <= x < end.  
+
 
 <a name = "python_api">
 ## Python API

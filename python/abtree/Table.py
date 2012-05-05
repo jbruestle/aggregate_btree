@@ -69,6 +69,9 @@ class _Table(collections.MutableMapping):
 			result_start = self.end
 		return (new_start, new_end)
 
+	def __str__(self):
+		return '{' + ', '.join(map(lambda (a,b): repr(a) + ': ' + repr(b), self.items())) + '}' 
+
 	def lower_bound(self, key):
 		it = self.inner.iter(key, None)
 		try:

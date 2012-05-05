@@ -28,4 +28,7 @@ class _SeqView(collections.Sequence):
 			key = self.table.key_at_index(index)
 			value = self.table[key]
 			return self.item_func(key, value)
+
+	def __str__(self):
+		return str(list(self))
 		
