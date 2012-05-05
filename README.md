@@ -63,7 +63,7 @@ The table supports a superset of the operations of a python dictionary. In fact 
 ['bar', 'baz', 'foo', 'quux']
 ````
 
-Note that the default ordering for a table is that of cmp(), but this can be overridden.  Unlike a normal dictionary, Tables are also slicable, by key.  That means it is possible to grab any range of the table.  For example:
+Note that the default ordering for a table is that of cmp(), but this can be overridden.  Unlike a normal dictionary, Tables are also slicable, by key, which is a constant time operation.  That means it is possible to grab any range of the table.  For example:
 
 ````python
 >>> t = abtree.Table()
@@ -85,7 +85,28 @@ Note that the default ordering for a table is that of cmp(), but this can be ove
 {'f': 6, 'g': 6}
 ````
 
-Note that just like regular slicing, the first element is the inclusive start, and the second element is the exclusive end, and that either can be left out.  That is, the element include all of those such that: start <= x < end.  
+Note that just like regular slicing, the first element is the inclusive start, and the second element is the exclusive end, and that either can be left out.  That is, the elements include all of those such that: start <= key < end.  The output of a slicing operation is a range limit reference to the original map, meaning that changes can be made to it, however changes made to elements outside of the range will be ignore.  For example:
+
+````python
+>>> r1 = t['b':'e']
+>>> r1['b'] = 6   # This will overwrite b in t
+>>> r1['f'] = 12  # No effect (out of r1's range)
+>>> print t['b']  
+6
+>>> print t['f']
+6
+````
+
+Calling the 'keys()', 'value()', or 'items()' function of a Table returns a special immutable sequence.  All sequences are lazy, that is unless looked at they will not do any work.  They are guarentted to be ordered by the key, and moreover, they can be sliced in log(N) time.  This means that it is quick to find the Nth item in a table, even for a large N.  Also interesting, the resulting sequences will 'see' updates to the underlying table.
+
+````python
+>>> k = t.keys()
+>>> print k[2]  # Should be third element 'c'
+'c'
+>>> del t['a']  # Remove first element
+>>> print k[2]  # Should be new third element 'd'
+'d'
+```` 
 
 
 <a name = "python_api">
