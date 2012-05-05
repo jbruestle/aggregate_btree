@@ -113,6 +113,7 @@ Calling the 'keys()', 'value()', or 'items()' function of a Table returns a spec
 
 What is you don't want this 'updating' behavior?  Well, actually, the internal implementation of Tables is 'copy on write', which means that it is 'free' to copy a table, even a huge one with millions of entries.  Copys remain unaltered when the original is changes, as to sequences or slices based on the copy
 
+````python
 >>> t2 = t  # Make another reference to t (see's updates of t)
 >>> t3 = t.copy()  # Make a logical 'copy' of t (doesn't see updates).  Note this doesn't do any work
 >>> del t['a']  # Make a change to t, and t2, but not t3
@@ -122,6 +123,7 @@ What is you don't want this 'updating' behavior?  Well, actually, the internal i
 ['b', 'c', 'd', 'e', 'f', 'g']
 >>> print t3.keys()
 ['a', 'b', 'c', 'd', 'e', 'f', 'g']
+````
 
 
 <a name = "python_api">
