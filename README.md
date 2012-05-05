@@ -100,13 +100,28 @@ Note that just like regular slicing, the first element is the inclusive start, a
 Calling the 'keys()', 'value()', or 'items()' function of a Table returns a special immutable sequence.  All sequences are lazy, that is unless looked at they will not do any work.  They are guarentted to be ordered by the key, and moreover, they can be sliced in log(N) time.  This means that it is quick to find the Nth item in a table, even for a large N.  Also interesting, the resulting sequences will 'see' updates to the underlying table.
 
 ````python
->>> k = t.keys()
->>> print k[2]  # Should be third element 'c'
-'c'
->>> del t['a']  # Remove first element
->>> print k[2]  # Should be new third element 'd'
-'d'
-```` 
+>>> k = t.keys()  # Get the keys from the example table
+>>> print k   # Check what we have
+['a', 'b', 'c', 'd', 'e', 'f', 'g']
+>>> ks = k[1::2]  # Make a slice, element 1 - end, every other element
+>>> print ks  # See what it looks like
+['b', 'd', 'f']
+>>> del t['c']  # Now we remove an element
+>>> print ks   # See that even our complex slice updated
+['b', 'e', 'g']
+````
+
+What is you don't want this 'updating' behavior?  Well, actually, the internal implementation of Tables is 'copy on write', which means that it is 'free' to copy a table, even a huge one with millions of entries.  Copys remain unaltered when the original is changes, as to sequences or slices based on the copy
+
+>>> t2 = t  # Make another reference to t (see's updates of t)
+>>> t3 = t.copy()  # Make a logical 'copy' of t (doesn't see updates).  Note this doesn't do any work
+>>> del t['a']  # Make a change to t, and t2, but not t3
+>>> print t.keys()  
+['b', 'c', 'd', 'e', 'f', 'g']
+>>> print t2.keys()
+['b', 'c', 'd', 'e', 'f', 'g']
+>>> print t3.keys()
+['a', 'b', 'c', 'd', 'e', 'f', 'g']
 
 
 <a name = "python_api">
