@@ -34,7 +34,9 @@ class abt_mutex
 public:
 	abt_mutex()
 	{
-		pthread_mutex_init(&m_mutex, NULL);
+		pthread_mutexattr_init(&m_attr);
+		pthread_mutexattr_settype(&m_attr, PTHREAD_MUTEX_RECURSIVE);
+		pthread_mutex_init(&m_mutex, &m_attr);
 	}
 	~abt_mutex()
 	{
@@ -53,6 +55,7 @@ public:
 
 private:
 	bool m_held;
+	pthread_mutexattr_t m_attr;
 	pthread_mutex_t m_mutex;
 };
 
@@ -75,30 +78,32 @@ private:
 	abt_mutex& m_mutex;
 };
 
+/*
 class abt_condition
 {
 public:
 	abt_condition()
 	{
-		pthread_cond_init(&m_cond, NULL);
+	//	pthread_cond_init(&m_cond, NULL);
 	}
 
 	~abt_condition()
 	{
-		pthread_cond_destroy(&m_cond);
+	//	pthread_cond_destroy(&m_cond);
 	}
 
 	void wait(abt_lock& lock)
 	{
-		pthread_cond_wait(&m_cond, &lock.m_mutex.m_mutex);
+	//	pthread_cond_wait(&m_cond, &lock.m_mutex.m_mutex);
 	}
 
 	void notify_all()
 	{
-		pthread_cond_broadcast(&m_cond);	
+	//	pthread_cond_broadcast(&m_cond);	
 	}
 private:
-	pthread_cond_t m_cond;
+	//pthread_cond_t m_cond;
 };
+*/
 
 #endif

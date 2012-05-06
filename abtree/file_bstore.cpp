@@ -130,11 +130,15 @@ void file_bstore::clear_before(off_t offset)
 		throw io_exception("file_store is not open");
 	lock_t lock(m_mutex);
 	slabs_t::iterator itEnd = m_slabs.upper_bound(offset);
+	if (itEnd == m_slabs.begin())
+		return;  // Already done
 	itEnd--;
 	for(slabs_t::iterator it = m_slabs.begin(); it != itEnd; ++it)
 	{
+		slabs_t::iterator itNext = it;
+		++itNext;
+		//printf("Offset = %d, Deleting %d-%d\n", (int) offset, (int) it->first, (int) itNext->first);
 		it->second.io->close();
-		//printf("Deleting %d, %s\n", (int) it->first, it->second.name.c_str());
 		unlink(it->second.name.c_str());
 	}
 	m_slabs.erase(m_slabs.begin(), itEnd);
@@ -205,7 +209,7 @@ bool file_bstore::read_record(off_t offset, char& prefix, std::vector<char>& rec
 
 	slabs_t::iterator it = m_slabs.upper_bound(offset);
 	if (it == m_slabs.begin())
-		throw io_exception("Invalid offset on read");
+		throw io_exception(printstring("Invalid offset on read: %d", (int) offset));
 	it--;
 	file_io* file = it->second.io;
 	file->seek(offset - it->first);

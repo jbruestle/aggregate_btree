@@ -129,17 +129,14 @@ private:
 	enum proxy_state
 	{
 		unwritten,   // Node is new and not yet written to disk
-		writing,     // Node is actively being written
 		cached,      // Node is on disk, and also cached in memory
 		unloaded,    // Node is on disk only, m_ptr = NULL
-		loading,     // Node is actively being loaded from disk
 		root_marker,  // Fake proxy node used purely to 
 		root_marker_done   // Root has been written
 	};
 	cache_t& m_cache;	
 	Policy m_policy;
 	proxy_state m_state;
-	condition_t m_cond;
 	int m_ref_count;
 	int m_pin_count;
 	const node_t* m_ptr;

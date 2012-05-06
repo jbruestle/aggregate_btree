@@ -1,10 +1,12 @@
 
 import abtree_c
 import collections
+import threading
 import _SeqView
 
 class _Table(collections.MutableMapping):
-	def __init__(self, inner, cmp_func, empty_total, start, end):
+	def __init__(self, inner, store, cmp_func, empty_total, start, end):
+		self.store = store
 		self.inner = inner
 		self.cmp_func = cmp_func
 		self.empty_total = empty_total
@@ -13,7 +15,8 @@ class _Table(collections.MutableMapping):
 
 	def __contains__(self, key):
 		try:
-			self.inner.getitem(key)
+			with self.store.lock:
+				self.inner.getitem(key)
 			return True;
 		except KeyError:
 			return False
@@ -23,16 +26,18 @@ class _Table(collections.MutableMapping):
 			if key.step != None:
 				raise TypeError("Step not allowed in slices")
 			(new_start, new_end) = self.__intersect_range(key.start, key.stop)
-			return _Table(self.inner, self.cmp_func, self.empty_total, new_start, new_end)
+			return _Table(self.inner, self.store, self.cmp_func, self.empty_total, new_start, new_end)
 		elif self.__in_range(key):
-			return self.inner.getitem(key)
+			with self.store.lock:
+				return self.inner.getitem(key)
 		return None
 
 	def __setitem__(self, key, value):
 		if isinstance(key, slice):
 			raise TypeError("Slice assignment not allowed")
 		elif self.__in_range(key):
-			self.inner.setitem(key, value)
+			with self.store.lock:
+				self.inner.setitem(key, value)
 
 	def __delitem__(self, key):
 		if isinstance(key, slice):
@@ -41,13 +46,16 @@ class _Table(collections.MutableMapping):
 			for x in self[key].keys():
 				del self[x]
 		elif self.__in_range(key):
-			return self.inner.delitem(key)
+			with self.store.lock:
+				return self.inner.delitem(key)
 
 	def __iter__(self):
-		return self.inner.iter(self.start, self.end)
+		with self.store.lock:
+			return self.inner.iter(self.start, self.end)
 
 	def __len__(self): 
-		return self.inner.len(self.start, self.end)
+		with self.store.lock:
+			return self.inner.len(self.start, self.end)
 
 	def __in_range(self, key):
 		if self.start != None and self.cmp_func(self.start, key) > 0:
@@ -73,7 +81,8 @@ class _Table(collections.MutableMapping):
 		return '{' + ', '.join(map(lambda (a,b): repr(a) + ': ' + repr(b), self.items())) + '}' 
 
 	def lower_bound(self, key):
-		it = self.inner.iter(key, None)
+		with self.store.lock:
+			it = self.inner.iter(key, None)
 		try:
 			return it.next()
 		except StopIteration:
@@ -83,13 +92,15 @@ class _Table(collections.MutableMapping):
 	def total(self, base = None):
 		if base == None:
 			base = self.empty_total
-		return self.inner.total(self.start, self.end, base)
+		with self.store.lock:
+			return self.inner.total(self.start, self.end, base)
 	
 	def key_at_index(self, index):
-		return self.inner.key_at_index(self.start, self.end, index)
+		with self.store.lock:
+			return self.inner.key_at_index(self.start, self.end, index)
 
 	def copy(self):
-		return _Table(self.inner.copy(), self.cmp_func, self.empty_total, self.start, self.end)
+		return _Table(self.inner.copy(), self.store, self.cmp_func, self.empty_total, self.start, self.end)
 
 	def keys(self):
 		return _SeqView._SeqView(self, lambda k,v: k, 1)
@@ -101,16 +112,23 @@ class _Table(collections.MutableMapping):
 		return _SeqView._SeqView(self, lambda k,v: (k,v), 1)
 
 	def find(self, func):
-		return self.inner.find(func)
+		with self.store.lock:
+			return self.inner.find(func)
 
 	def aggregate_until(self, func):
-		return self.inner.aggregate_until(self.start, self.end, func) 
+		with self.store.lock:
+			return self.inner.aggregate_until(self.start, self.end, func) 
+
+class _MemStore:
+	def __init__(self):
+		self.lock = threading.RLock()
 
 def Table(aggregate_func = lambda a,b: None, empty_total = None, cmp_func = cmp):
 	policy = {
 		'cmp' : cmp_func,
 		'aggregate' : aggregate_func
 	}
-	return _Table(abtree_c.MemoryTree(policy), cmp_func, empty_total, None, None)
+	memstore = _MemStore()
+	return _Table(abtree_c.MemoryTree(policy), memstore, cmp_func, empty_total, None, None)
 
 

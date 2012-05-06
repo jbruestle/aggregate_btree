@@ -4,6 +4,8 @@
 #include <boost/enable_shared_from_this.hpp>
 using namespace boost::python;
 
+#define __for_python__
+
 #include "abtree/abtree.h"
 #include "abtree/disk_abtree.h"
 #include "abtree/tree_walker.h"
@@ -447,6 +449,7 @@ public:
 
 BOOST_PYTHON_MODULE(abtree_c)
 {
+        PyEval_InitThreads();
 	using namespace boost::python;
 	class_<py_key_iterator<disk_tree> >("DiskKeyIterator", no_init)
 		.def("__iter__", &py_key_iterator<disk_tree>::__iter__)

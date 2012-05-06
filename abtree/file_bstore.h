@@ -21,6 +21,7 @@
 #include <vector>
 #include <map>
 
+#include <assert.h>
 #include "abtree/vector_io.h"
 #include "abtree/file_io.h"
 #include "abtree/serial.h"
