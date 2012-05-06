@@ -173,14 +173,11 @@ public:
 	{}
 
 	store_t& get_store() { return m_store; }
+	boost::shared_ptr<py_disk_tree> attach(const std::string& name, const object& policy);
 
-	boost::shared_ptr<py_disk_tree> load(const std::string& name, const object& policy);
-	void save(const std::string& name, boost::shared_ptr<py_disk_tree> tree);
-
-	void sync()
-	{
-		m_store.sync();
-	}
+	void mark() { m_store.mark(); }
+	void revert() { m_store.revert(); }
+	void sync() { m_store.sync(); }
 
 private:
 	store_t m_store;
@@ -239,6 +236,25 @@ private:
 };
 
 template<class TreeType>
+struct lame_save_helper
+{
+	typedef TreeType tree_t;
+	typedef typename disk_tree::store_type store_t;
+	static void save(store_t& store, const std::string& name, const tree_t& tree) {}
+};
+
+template<>
+struct lame_save_helper<disk_tree>
+{
+	typedef disk_tree tree_t;
+	typedef tree_t::store_type store_t;
+	static void save(store_t& store, const std::string& name, const tree_t& tree) 
+	{
+		store.save(name, tree);
+	}
+};
+
+template<class TreeType>
 class py_tree 
 {
 	typedef TreeType tree_t;
@@ -246,16 +262,17 @@ class py_tree
 	typedef typename tree_t::const_iterator iterator_t;
 public:
 	/* Only instantiated for disk_tree */
-	py_tree(const boost::shared_ptr<py_store>& store, const tree_t& tree) 
+	py_tree(const boost::shared_ptr<py_store>& store, const tree_t& tree, const std::string& name) 
 		: m_store(store)
 		, m_tree(tree) 
+		, m_name(name)
 	{}
 
 	/* Only instantiated for disk_tree */
 	py_tree(const boost::shared_ptr<py_store>& store, const object& policy)
 		: m_store(store)
 		, m_tree(store->get_store(), pytree_policy(policy))
-	{}
+        {}
 
 	/* Only instantiated for mem_tree */
 	py_tree(const object& policy)
@@ -276,14 +293,27 @@ public:
 		return it->second.obj;
 	}
 
+	void load()
+	{
+		m_tree = m_store->get_store().load(m_name, m_tree.get_policy().get_policy());
+	}
+
+	void save()
+	{
+		if (m_name != "")
+			lame_save_helper<TreeType>::save(m_store->get_store(), m_name, m_tree);
+	}
+		
 	void setitem(const object& key, const object& value) 
 	{ 
 		m_tree[key] = value;
+		save();
 	}
 
 	void delitem(const object& key)
 	{
 		m_tree.erase(key);
+		save();
 	}
 
 	py_key_iterator<TreeType> iter(const object& start, const object& end)
@@ -378,17 +408,17 @@ private:
 
 	boost::shared_ptr<py_store> m_store;  // Empty in memory case
 	tree_t m_tree;
+	std::string m_name;
 };
 
-boost::shared_ptr<py_disk_tree> py_store::load(const std::string& name, const object& policy)
+boost::shared_ptr<py_disk_tree> py_store::attach(const std::string& name, const object& policy)
 {
-	boost::shared_ptr<py_disk_tree> ptr(new py_disk_tree(shared_from_this(), m_store.load(name, pytree_policy(policy))));
+	boost::shared_ptr<py_disk_tree> ptr(new 
+		py_disk_tree(shared_from_this(),
+			m_store.load(name, pytree_policy(policy)),
+			name
+		));
 	return ptr;
-}
-
-void py_store::save(const std::string& name, boost::shared_ptr<py_disk_tree> tree)
-{
-	m_store.save(name, tree->get_tree());
 }
 
 class hilbert_wrap
@@ -436,12 +466,14 @@ BOOST_PYTHON_MODULE(abtree_c)
 		;
 	class_<py_store, boost::shared_ptr<py_store>, boost::noncopyable >("Store", 
 		init<std::string, bool, size_t, size_t, const object&>())
-		.def("load", &py_store::load)
-		.def("save", &py_store::save)
+		.def("attach", &py_store::attach)
+		.def("mark", &py_store::mark)
+		.def("revert", &py_store::revert)
 		.def("sync", &py_store::sync)
 		;
 	class_<py_disk_tree, boost::shared_ptr<py_disk_tree>, boost::noncopyable >("DiskTree", 
 		init<const boost::shared_ptr<py_store>&, const object&>())
+		.def("load", &py_disk_tree::load)
 		.def("getitem", &py_disk_tree::getitem)
 		.def("setitem", &py_disk_tree::setitem)
 		.def("delitem", &py_disk_tree::delitem)

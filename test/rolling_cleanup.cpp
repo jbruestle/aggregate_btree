@@ -26,6 +26,7 @@ TEST(rolling, main)
 	for(size_t i = 0; i < 100; i++)
 		tree[random() % 1000] = random() % 1000;
 	store.save("root", tree);
+	store.mark();
 	store.sync();
 	btree_t copy = tree;
 	for(size_t i = 0; i < 1000; i++)
@@ -33,6 +34,7 @@ TEST(rolling, main)
 		for(size_t j = 0; j < 20; j++)
 			tree[random() % 1000] = random() % 1000;
 		store.save("root", tree);
+		store.mark();
 		store.sync();
 	}
 }

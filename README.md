@@ -74,7 +74,6 @@ Note that the default ordering for a table is that of cmp(), but this can be ove
 >>> t['e'] = 10
 >>> t['f'] = 6
 >>> t['g'] = 6
->>> t['b':'f']
 >>> print t['b':'f']
 {'b': 10, 'c': 4, 'd': 5, 'e': 10}
 >>> print t['bar':'foo']
@@ -91,9 +90,9 @@ Note that just like regular slicing, the first element is the inclusive start, a
 >>> r1 = t['b':'e']
 >>> r1['b'] = 6   # This will overwrite b in t
 >>> r1['f'] = 12  # No effect (out of r1's range)
->>> print t['b']  
+>>> print t['b']  # Shows altered value
 6
->>> print t['f']
+>>> print t['f']  # Shows original value
 6
 ````
 
@@ -117,13 +116,16 @@ What is you don't want this 'updating' behavior?  Well, actually, the internal i
 >>> t2 = t  # Make another reference to t (see's updates of t)
 >>> t3 = t.copy()  # Make a logical 'copy' of t (doesn't see updates).  Note this doesn't do any work
 >>> del t['a']  # Make a change to t, and t2, but not t3
->>> print t.keys()  
-['b', 'c', 'd', 'e', 'f', 'g']
->>> print t2.keys()
-['b', 'c', 'd', 'e', 'f', 'g']
->>> print t3.keys()
-['a', 'b', 'c', 'd', 'e', 'f', 'g']
+>>> del t2['e']  # t2 also effects t, they are one in the same
+>>> del t3['c']  # t3 operates independantly 
+>>> print t.keys() # t say two of the changes  
+['b', 'c', 'd', 'f', 'g']
+>>> print t2.keys()  # t2 looks just like t
+['b', 'c', 'd', 'f', 'g']
+>>> print t3.keys()  # t3 saw only it's change
+['a', 'b', 'd', 'e', 'f', 'g']
 ````
+
 
 
 <a name = "python_api">

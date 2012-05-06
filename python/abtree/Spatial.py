@@ -11,8 +11,8 @@ class Spatial(collections.MutableMapping):
 		self.name = name
 		if (store != None):
 			# Make tables on disk
-			self.forward = store.load(name + ":forward")
-			self.by_location = store.load(name + ":by_location", Spatial.agg_region, None, Spatial.cmp_location)
+			self.forward = store.attach(name + ":forward")
+			self.by_location = store.attach(name + ":by_location", Spatial.agg_region, None, Spatial.cmp_location)
 		else:
 			# In memory only, used dict and table
 			self.forward = {}
@@ -63,10 +63,6 @@ class Spatial(collections.MutableMapping):
 		it = self.by_location.find(lambda v: Spatial.box_intersect(v, box)) 
 		# Covert the keys of by_location (loc, key) to straight keys
 		return imap(lambda k: k[1], it)
-
-	def save(self):
-		self.store.save(self.name + ":forward", self.forward)
-		self.store.save(self.name + ":by_location", self.by_location)
 
 	# Computes the bounding box that holds both inputs bounding boxs
 	@staticmethod

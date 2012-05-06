@@ -111,6 +111,7 @@ public:
 		else if (r == node_type::ur_modify)
 		{
 			m_root = m_cache->new_node(w_root);
+			m_cache->clean_one();
 		}
 		else if (r == node_type::ur_insert)
 		{
@@ -578,6 +579,7 @@ public:
 	void aggregate(value_t& out, const value_t& in) const { return m_policy.aggregate(out, in); }
 	void serialize(writable& out, const key_t& k, const value_t& v) const { return m_policy.serialize(out, k, v); }
 	void deserialize(readable& in, key_t& k, value_t& v) const { return m_policy.deserialize(in, k, v); }
+	const BasePolicy& get_policy() const { return m_policy; }
 private:
 	BasePolicy m_policy;
 };

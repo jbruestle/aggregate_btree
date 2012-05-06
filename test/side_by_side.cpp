@@ -274,6 +274,7 @@ TEST(side_by_side, disk_tree)
 				ASSERT_LE(btree_impl::g_node_count, size_t(30));
 				printf("Closing trr\n");
 				store->save("root", t.get_btree());
+				store->mark();
 				store->sync();
 				mtree_t save = t.get_mtree();
 				t.clear();
@@ -429,6 +430,7 @@ TEST(side_by_side, disk_tree)
 		t.update(val, always_erase());
 	}
 	store->save("root", t.get_btree());
+	store->mark();
 	store->sync();
 	t.clear();
 	delete store;

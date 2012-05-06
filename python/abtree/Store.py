@@ -16,6 +16,7 @@ class Store:
 			'deserialize' : deserialize_func
 		}
 		self.store = abtree_c.Store(name, create, max_write_cache, max_read_cache, self.policy)
+		self.tables = {}
 
 	def new_table(self, aggregate_func = lambda a,b: None, empty_total = None, cmp_func = cmp):
 		new_policy = {
@@ -26,7 +27,7 @@ class Store:
 		}
 		return Table._Table(abtree_c.DiskTree(self.store, new_policy), cmp_func, empty_total, None, None)
 	
-	def load(self, 
+	def attach(self, 
 		name, 
 		aggregate_func = lambda a,b: None, 
 		empty_total = None,
@@ -37,12 +38,22 @@ class Store:
 			'cmp' : cmp_func,
 			'aggregate' : aggregate_func
 		}
-		return Table._Table(self.store.load(name, new_policy), cmp_func, empty_total, None, None)
+		t = Table._Table(self.store.attach(name, new_policy), cmp_func, empty_total, None, None)
+		self.tables[name] = t
+		return t
 
-	def save(self, name, table):
-		self.store.save(name, table.inner)
+	def mark(self):
+		self.store.mark()
+
+	def revert(self):
+		self.store.revert()
+		for name in self.tables.values():
+			self.table.load()
 
 	def sync(self):
 		self.store.sync()
+
+	def __getitem__(self, key):
+		return self.tables[key]
 
 

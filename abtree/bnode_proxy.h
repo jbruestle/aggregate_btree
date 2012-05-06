@@ -89,6 +89,19 @@ private:
 		, m_height(height)
 	{}
 
+	// Create a 'root_marker' proxy node
+	bnode_proxy(cache_t& store, const Policy& policy)
+		: m_cache(store)
+		, m_policy(policy)
+		, m_state(root_marker)
+		, m_ref_count(0)
+		, m_pin_count(0)
+		, m_ptr(NULL)
+		, m_off(0)
+		, m_oldest(0)
+		, m_height(0)
+	{}
+
 	~bnode_proxy()
 	{}
 
@@ -115,11 +128,13 @@ public:
 private:
 	enum proxy_state
 	{
-		unwritten,
-		writing,
-		cached,
-		unloaded,
-		loading
+		unwritten,   // Node is new and not yet written to disk
+		writing,     // Node is actively being written
+		cached,      // Node is on disk, and also cached in memory
+		unloaded,    // Node is on disk only, m_ptr = NULL
+		loading,     // Node is actively being loaded from disk
+		root_marker,  // Fake proxy node used purely to 
+		root_marker_done   // Root has been written
 	};
 	cache_t& m_cache;	
 	Policy m_policy;

@@ -49,11 +49,10 @@ public:
 		{
 			return disk_abtree(m_cache.load(name, policy_t(policy)));
 		}
-
-		void sync()
-		{
-			m_cache.sync();
-		}
+		
+		void mark() { m_cache.mark(); }
+		void revert() { m_cache.revert(); }
+		void sync() { m_cache.sync(); }
 	private:
 		policy_t m_def_policy;
 		cache_t m_cache;
