@@ -21,55 +21,39 @@
 #include "abtree/btree.h"
 
 template<class BasePolicy, class File = file_bstore>
-class disk_abtree : public btree_impl::btree_base<btree_impl::disk_policy<BasePolicy, File> >
+class abtree_store
 {
+public:
+	typedef btree_impl::btree_base<btree_impl::disk_policy<BasePolicy, File> > tree_type;
+	typedef boost::shared_ptr<tree_type> tree_ptr_t;
+private:
 	typedef btree_impl::disk_policy<BasePolicy, File> policy_t;
 	typedef btree_impl::bcache<policy_t> cache_t;
 	typedef btree_impl::btree_base<policy_t> base_t;
 	typedef typename btree_impl::apply_policy<policy_t>::cache_ptr_t cache_ptr_t;
-
 public:
-	class store_type : public File
+	abtree_store(const std::string& dir, bool create, size_t max_unwritten, size_t max_lru, const BasePolicy& policy = BasePolicy())
+		: m_file(dir, create)
+		, m_def_policy(policy_t(policy))
+		, m_cache(m_file, max_unwritten, max_lru, policy_t(policy))
+	{}
+
+	tree_ptr_t attach(const std::string& name, const BasePolicy& policy = BasePolicy()) { 
+		return m_cache.attach(name, policy_t(policy));
+	}
+	tree_ptr_t create_tmp(const BasePolicy& policy = BasePolicy())
 	{
-		friend class disk_abtree;
-	public:
-		// This is lame, I shouldn't be using derivation here
-		store_type(const std::string& dir, bool create, size_t max_unwritten, size_t max_lru, const BasePolicy& policy = BasePolicy())
-			: File(dir, create) 
-			, m_def_policy(policy_t(policy))
-			, m_cache(*this, max_unwritten, max_lru, policy_t(policy))
-		{}
-			
-		void save(const std::string& name, const disk_abtree& tree)
-		{
-			m_cache.save(name, tree);
-		}
+		return tree_ptr_t(new tree_type(&m_cache, policy));
+	}
 
-		disk_abtree load(const std::string& name, const BasePolicy& policy = BasePolicy())
-		{
-			return disk_abtree(m_cache.load(name, policy_t(policy)));
-		}
-		
-		void mark() { m_cache.mark(); }
-		void revert() { m_cache.revert(); }
-		void sync() { m_cache.sync(); }
-	private:
-		policy_t m_def_policy;
-		cache_t m_cache;
-	};	
+	void mark() { m_cache.mark(); }
+	void revert() { m_cache.revert(); }
+	void sync() { m_cache.sync(); }
 
-	friend class store_type;	
-	disk_abtree(store_type& store, const BasePolicy& policy = BasePolicy()) 
-		: base_t(&store.m_cache, policy_t(policy))
-	{}
-	disk_abtree(const disk_abtree& rhs) 
-		: base_t(rhs) 
-	{}
 private:
-	disk_abtree(const base_t& base)
-		: base_t(base) 
-	{}
-
+	File m_file;
+	policy_t m_def_policy;
+	cache_t m_cache;
 };
 
 #endif

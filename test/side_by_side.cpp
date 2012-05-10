@@ -40,9 +40,9 @@ const size_t k_value_range = 100;
 const size_t k_num_snapshots = 5;
 const bool noisy = false;
 
-typedef disk_abtree<my_policy> btree_t;
+typedef abtree_store<my_policy> store_t;
+typedef store_t::tree_type btree_t;
 typedef btree_t::const_iterator biterator_t;
-typedef btree_t::store_type store_t;
 
 typedef std::map<int, int> mtree_t;
 typedef mtree_t::const_iterator miterator_t;
@@ -97,7 +97,7 @@ class mock_tree
 {
 public:
 	mock_tree(store_t& store, const std::string& name, const mtree_t& mt) 
-		: m_btree(store.load(name))
+		: m_btree(*store.attach(name))
 		, m_mtree(mt)
 	{}
 
@@ -273,7 +273,7 @@ TEST(side_by_side, disk_tree)
 				snaps.clear();
 				ASSERT_LE(btree_impl::g_node_count, size_t(30));
 				printf("Closing trr\n");
-				store->save("root", t.get_btree());
+				(*store->attach("root")) = t.get_btree();
 				store->mark();
 				store->sync();
 				mtree_t save = t.get_mtree();
@@ -429,7 +429,7 @@ TEST(side_by_side, disk_tree)
 		if (noisy) printf("Erasing %d\n", val);
 		t.update(val, always_erase());
 	}
-	store->save("root", t.get_btree());
+	(*store->attach("root")) = t.get_btree();
 	store->mark();
 	store->sync();
 	t.clear();

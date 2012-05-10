@@ -88,6 +88,7 @@ off_t file_bstore::write_node(const std::vector<char>& record)
 	//BZ2_bzBuffToBuffCompress(&outbuf[4], &outlen, const_cast<char*>(&record[0]), record.size(), 1, 0, 0);
 	//outbuf.resize(4 + outlen);
 	lock_t lock(m_mutex); 
+	//return write_record('N', outbuf); 
 	return write_record('N', record); 
 }
 
@@ -97,6 +98,7 @@ void file_bstore::write_root(const std::vector<char>& record)
 		throw io_exception("file_store is not open");
 	lock_t lock(m_mutex); 
 	m_root = write_record('R', record);
+	//printf("Writing root record: %d\n", (int) m_root);
 }
 
 void file_bstore::read_node(off_t which, std::vector<char>& record) 
@@ -106,6 +108,7 @@ void file_bstore::read_node(off_t which, std::vector<char>& record)
 	//std::vector<char> inbuf;
 	//{
 	lock_t lock(m_mutex);
+	//safe_read_record(which, 'N', inbuf);
 	safe_read_record(which, 'N', record);
 	//}
 	//unsigned int destlen = ntohl(*((uint32_t *) (inbuf.data())));
@@ -118,6 +121,7 @@ void file_bstore::read_root(std::vector<char>& record)
 	if (m_cur_slab == NULL)
 		throw io_exception("file_store is not open");
 	lock_t lock(m_mutex);
+	//printf("Reading root record: %d\n", (int) m_root);
 	if (m_root == 0)
 		record.clear();
 	else

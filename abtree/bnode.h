@@ -267,6 +267,23 @@ private:
 		return erase_fixup(cache, peer);  // Do an erase fixup
 	}
 
+	bool load_below(cache_t& cache, off_t min_offset)
+	{
+		if (m_height == 0)
+			return false;
+
+		for(size_t i = 0; i < m_size; i++)
+		{
+			if (ptr(i).get_oldest() > min_offset)
+				continue;
+			bnode* new_node = m_ptrs[i]->copy();
+			new_node->load_below(cache, min_offset);
+			m_ptrs[i] = cache.new_node(new_node);
+			return true;
+		}
+		return false;
+	}
+
 	ptr_t& ptrnc(size_t i) { return m_ptrs[i]; } 
 
 public:

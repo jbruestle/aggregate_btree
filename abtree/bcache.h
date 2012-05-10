@@ -21,6 +21,8 @@
 #include <set>
 #include <boost/unordered_map.hpp>
 #include <boost/intrusive/list.hpp>
+#include <boost/foreach.hpp>
+#define foreach BOOST_FOREACH
 
 #include "abtree/bdecl.h"
 #include "abtree/vector_io.h"
@@ -34,17 +36,12 @@ class bcache
 	typedef bnode<Policy> node_t;
 	typedef bnode_proxy<Policy> proxy_t;
 	typedef bnode_cache_ptr<Policy> ptr_t;
+	typedef btree_base<Policy> tree_t;
+	typedef boost::shared_ptr<tree_t> tree_ptr_t;
 	typedef typename Policy::store_t store_t;
 	typedef abt_lock lock_t;
 
-	struct tree_info 
-	{
-		tree_info() : height(0), size(0) {}
-		ptr_t root;
-		size_t height;
-		size_t size;
-	};
-	typedef std::map<std::string, tree_info> roots_t;
+	typedef std::map<std::string, tree_ptr_t> roots_t;
 public:
 	bcache(store_t& store, size_t max_unwritten_size, size_t max_lru_size, const Policy& policy = Policy())
 		: m_store(store)
@@ -72,11 +69,11 @@ public:
 			deserialize(io, oldest);
 			deserialize(io, height);
 			deserialize(io, size);
-			tree_info& ti = m_current[str]; 
+			ptr_t root;
 			if (off != 0)
-				ti.root = lookup(off, oldest, height, policy);
-			ti.height = height;
-			ti.size = size;
+ 				root = lookup(off, oldest, height, policy);
+			m_current.insert(std::make_pair(str, 
+				tree_ptr_t(new tree_t(this, root, height, size, policy))));
 		}
 	}
 
@@ -108,10 +105,12 @@ public:
 			else if (proxy.m_state == proxy_t::unloaded)
 			{
 				// Just erase for offset 
+				m_oldest.erase(&proxy);
 				m_by_off.erase(proxy.m_off);
 			}
 			else if (proxy.m_state == proxy_t::cached)
 			{
+				m_oldest.erase(&proxy);
 				m_by_off.erase(proxy.m_off);
 				m_lru.erase(m_lru.iterator_to(proxy));
 				delete proxy.m_ptr;
@@ -119,7 +118,6 @@ public:
 			else
 				assert(false);
 
-			m_oldest.erase(&proxy);
 			delete &proxy;
 		}
 	}
@@ -169,13 +167,6 @@ public:
 		proxy_t* proxy = new proxy_t(*this, node); // Make the proxy
 		m_unwritten.push_back(*proxy); // Add it to unwritten
 		// Calculate m_oldest
-		if (node->height() != 0)
-		{
-			for(size_t i = 0; i < node->size(); i++)
-				proxy->m_oldest = std::min(proxy->m_oldest, node->ptr(i).get_oldest());
-		}
-		// Add to oldest queue
-		m_oldest.insert(proxy);
 		ptr_t r(proxy);
 		// Write data if our buffer is full
 		while(m_unwritten.size() > m_max_unwritten_size)
@@ -222,29 +213,37 @@ private:
 	}
 public:
 
-	btree_base<Policy> load(const std::string& name, const Policy& policy = Policy())
+	tree_ptr_t attach(const std::string& name, const Policy& policy = Policy())
 	{
 		lock_t lock(m_mutex);
-		// Find the entry (or maybe create it)
-		tree_info& ti = m_current[name]; 
-		// Update the policy as needed
-		update_policy(ti.root, policy);
-		// Return a new tree
-		return btree_base<Policy>(this, ti.root, ti.height, ti.size, policy);
+		if (m_current.find(name) == m_current.end())
+		{
+			// Make a new entry if needed
+			m_current.insert(std::make_pair(name, tree_ptr_t(new tree_t(this, policy))));
+		}
+		else
+		{
+			// Find existing entry
+			tree_ptr_t t = m_current[name]; 
+			// Update the policy as needed
+			t->set_policy(policy);
+			update_policy(t->get_root(), policy);
+		}
+		// Return a the tree
+		return m_current[name];
 	}
 
-	void save(const std::string& str, const btree_base<Policy>& rhs)
+	void copy_roots(roots_t& out, const roots_t& in)
 	{
-		lock_t lock(m_mutex);
-		tree_info& ti = m_current[str]; 
-		ti.root = rhs.get_root();
-		ti.height = rhs.get_height();
-		ti.size = rhs.size();
+		out.clear();
+		foreach(const typename roots_t::value_type& kvp, m_current)
+			m_mark[kvp.first] = tree_ptr_t(new tree_t(*kvp.second));
 	}
 
 	void mark()
 	{
 		lock_t lock(m_mutex);
+		copy_roots(m_mark, m_current);
 		m_mark = m_current;
 		m_is_synced = false;
 	}
@@ -252,7 +251,7 @@ public:
 	void revert()
 	{
 		lock_t lock(m_mutex);
-		m_current = m_mark;
+		copy_roots(m_current, m_mark);
 	}
 		
 	void sync()
@@ -261,6 +260,7 @@ public:
 		// Maybe skip sync if no new marks
 		if (m_is_synced) return;
 		// Set up for post sync world
+		copy_roots(m_syncing, m_mark);
 		m_syncing = m_mark;
 		m_is_synced = true;
 		// Put in a 'sync node
@@ -270,6 +270,13 @@ public:
 		while(p->m_state != proxy_t::root_marker_done)
 			write_front();
 		delete p;
+		//  allow system to clear old data
+		if (m_oldest.size())
+		{
+			off_t oldest = (*m_oldest.begin())->m_oldest;
+			if (oldest != std::numeric_limits<off_t>::max())
+				m_store.clear_before(oldest);
+		}
 		// Remove excess cached nodes
 		while(m_lru.size() > m_max_lru_size)
 			reduce_lru();
@@ -278,74 +285,23 @@ public:
 	void clean_one()
 	{
 		lock_t lock(m_mutex);
-		//printf("Cleaning!\n");
-		// If there is nothing on disk, forget it
-		if (m_oldest.size() == 0) return;
-		// Otherwise, find the oldest location
-		typename oldest_t::const_iterator it = m_oldest.begin();
-		off_t to_clean = (*it)->m_oldest;
-		//printf("To clean = %d!\n", (int) to_clean);
+		off_t oldest = std::numeric_limits<off_t>::max();
+		typename roots_t::const_iterator it, itEnd = m_current.end();
+		// Find the oldest element that is current
+		for(it = m_current.begin(); it != itEnd; ++it)
+		{
+			if (it->second->size() != 0)
+				oldest = std::min(oldest, it->second->get_root().get_oldest());
+		}
 		// If it's not on disk, forget it
-		if (to_clean == std::numeric_limits<off_t>::max()) return;
-		// For all the elements, load and collect
-		// Because everything within the same oldest offset is sorted by descending height
-		// newly loaded nodes will *always* appear after our current iterator, and the resulting
-		// vector of found nodes will be in topological sort order
-		std::vector<proxy_t*> found;
-		while(it != m_oldest.end() && (*it)->m_oldest == to_clean)
+		if (oldest == std::numeric_limits<off_t>::max()) return;
+		// Otherwise move it forward
+		for(it = m_current.begin(); it != itEnd; ++it)
 		{
-			pin(**it); // The dreaded **
-			found.push_back(*it);
-			++it;	
+			it->second->load_below(oldest);
 		}
-		// Do the actual update
-		for(size_t i = found.size(); i > 0; i--)
-		{
-			// Get each proxy, starting from the leaf
-			proxy_t* p = found[i-1];
-			// All node's state should be 'cached' or 'unwritten', and pinned
-			// They are pinned because we pinned them
-			assert(p->m_pin_count > 0);
-			assert(p->m_state == proxy_t::cached || p->m_state == proxy_t::unwritten);
-
-			m_oldest.erase(p); // Remove from oldest
-			if (p->m_state == proxy_t::cached)
-				m_by_off.erase(p->m_off);  // Remove fr offset lookup if needed
-		
-			// Clear position
-			p->m_off = 0;
-			// Recalculate new oldest	
-			p->m_oldest = std::numeric_limits<off_t>::max();
-			if (p->m_ptr->height() != 0)
-			{
-				for(size_t i = 0; i < p->m_ptr->size(); i++)
-					p->m_oldest = std::min(p->m_oldest, p->m_ptr->ptr(i).get_oldest());
-			}
-			// Reinsert into m_oldest
-			m_oldest.insert(p);
-		}
-		// Now push new 'unwritten' nodes in *front* of existing nodes, and in proper order
-		for(size_t i = 0; i < found.size(); i++)
-		{
-			// Get each proxy, starting with the roots
-			proxy_t* p = found[i]; 
-			if (p->m_state != proxy_t::unwritten)
-			{
-				p->m_state = proxy_t::unwritten;  // Set state to unwritten
-				m_unwritten.push_front(*p);  // Write to unwritten queue
-			}
-		}			
-		// Unpin all the nodes
-		for(size_t i = 0; i < found.size(); i++)
-			unpin(*found[i]);
-		// Penultimately, remove extra unwritten data
-		while(m_unwritten.size() > m_max_unwritten_size)
-			write_front();
-		assert((*m_oldest.begin())->m_oldest != to_clean);
-		// Finally, allow system to clear old data
-		m_store.clear_before(to_clean);	
 	}
-
+	
 private:
 	void write_root(const roots_t& roots)
 	{
@@ -357,19 +313,19 @@ private:
 		for(it = roots.begin(); it != itEnd; ++it)
 		{
 			serialize(out, it->first);  // Write it's name
-			const tree_info& ti = it->second;  
+			const tree_ptr_t& t = it->second;  
 			off_t off = 0;
 			off_t oldest = 0;
-			if (ti.root != ptr_t())
+			if (t->get_root() != ptr_t())
 			{
-				off = ti.root.get_offset();
-				oldest = ti.root.get_oldest();
+				off = t->get_root().get_offset();
+				oldest = t->get_root().get_oldest();
 			}
 			// Write the actual data
 			serialize(out, off);
 			serialize(out, oldest);
-			serialize(out, ti.height); 
-			serialize(out, ti.size);
+			serialize(out, t->get_height()); 
+			serialize(out, t->size());
 		}
 		m_store.write_root(buf);
 	}
@@ -390,7 +346,7 @@ private:
 			// Do actual write
 			off_t off = write_node(*proxy.m_ptr);
 			// Update offset
-			m_oldest.erase(&proxy);
+			//m_oldest.erase(&proxy);
 			proxy.m_off = off;
 			proxy.m_oldest = off;
 			const node_t* node = proxy.m_ptr;

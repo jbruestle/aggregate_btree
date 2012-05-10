@@ -154,6 +154,25 @@ public:
 		}
 		return true;	
 	}
+
+	bool load_below(off_t off) 
+	{
+		// If empty, skip
+		if (m_root == node_ptr_type())
+			return false;
+		// If not that old skip
+		if (m_root.get_oldest() > off)
+			return false;
+
+		// Otherwise, give it a go
+		node_type* w_root = m_root->copy();
+		bool r = w_root->load_below(*m_cache, off);
+		if (r)
+			m_root = m_cache->new_node(w_root);
+		else
+			delete w_root;
+		return r;
+	}
 	
 private:
 	class mutable_iterator;
@@ -467,6 +486,7 @@ public:
 	size_t get_height() const { return m_height; }
 	const node_ptr_type& get_root() const { return m_root; }
 	const Policy& get_policy() const { return m_policy; }
+	void set_policy(const Policy& rhs) { m_policy = rhs; }
 	
 	size_t count(const key_type& x)
 	{

@@ -76,7 +76,6 @@ template<class TreeType>
 class py_key_iterator
 {
 	typedef TreeType tree_t;
-	typedef typename tree_t::store_type store_t;
 	typedef typename tree_t::const_iterator iterator_t;
 public:
 	py_key_iterator(const iterator_t& begin, const iterator_t& end) 
@@ -158,7 +157,7 @@ private:
 	object m_object;
 };
 
-typedef disk_abtree<pytree_policy> disk_tree;
+typedef abtree_store<pytree_policy>::tree_type disk_tree;
 typedef abtree<object, obj_count, mem_agg, mem_less> memory_tree;
 
 typedef py_tree<disk_tree> py_disk_tree;
@@ -167,7 +166,7 @@ typedef py_tree<memory_tree> py_memory_tree;
 class py_store : public boost::enable_shared_from_this<py_store>
 {
 	typedef disk_tree tree_t;
-	typedef tree_t::store_type store_t;
+	typedef abtree_store<pytree_policy> store_t;
 	typedef tree_t::const_iterator iterator_t;
 public:
 	py_store(const std::string& name, bool create, size_t max_unwritten, size_t max_lru, const object& policy)
@@ -201,7 +200,6 @@ template<class TreeType>
 class py_find_iterator
 {
 	typedef TreeType tree_t;
-	typedef typename tree_t::store_type store_t;
 	typedef typename tree_t::const_iterator iterator_t;
 public:
 	py_find_iterator(const boost::shared_ptr<py_store>& store, const tree_t& tree, const object& lambda)
@@ -238,56 +236,37 @@ private:
 };
 
 template<class TreeType>
-struct lame_save_helper
-{
-	typedef TreeType tree_t;
-	typedef typename disk_tree::store_type store_t;
-	static void save(store_t& store, const std::string& name, const tree_t& tree) {}
-};
-
-template<>
-struct lame_save_helper<disk_tree>
-{
-	typedef disk_tree tree_t;
-	typedef tree_t::store_type store_t;
-	static void save(store_t& store, const std::string& name, const tree_t& tree) 
-	{
-		store.save(name, tree);
-	}
-};
-
-template<class TreeType>
 class py_tree 
 {
 	typedef TreeType tree_t;
-	typedef typename tree_t::store_type store_t;
+	typedef boost::shared_ptr<TreeType> tree_ptr_t;
 	typedef typename tree_t::const_iterator iterator_t;
 public:
 	/* Only instantiated for disk_tree */
-	py_tree(const boost::shared_ptr<py_store>& store, const tree_t& tree, const std::string& name) 
+	py_tree(const boost::shared_ptr<py_store>& store, const std::string& name, const object& policy) 
 		: m_store(store)
-		, m_tree(tree) 
+		, m_tree(m_store->get_store().attach(name, pytree_policy(policy)))
 		, m_name(name)
 	{}
 
 	/* Only instantiated for disk_tree */
 	py_tree(const boost::shared_ptr<py_store>& store, const object& policy)
 		: m_store(store)
-		, m_tree(store->get_store(), pytree_policy(policy))
+		, m_tree(m_store->get_store().create_tmp(pytree_policy(policy)))
         {}
 
 	/* Only instantiated for mem_tree */
 	py_tree(const object& policy)
-		: m_tree(mem_agg(policy), mem_less(policy))
+		: m_tree(tree_ptr_t(new tree_t(mem_agg(policy), mem_less(policy))))
 	{}
 
-	const tree_t& get_tree() { return m_tree; }
+	const tree_t& get_tree() { return *m_tree; }
 
 	object getitem(const object& key) 
 	{ 
 		object r;
-		iterator_t it = m_tree.find(key);
-		if (it == m_tree.end())
+		iterator_t it = m_tree->find(key);
+		if (it == m_tree->end())
 		{
 			PyErr_SetString(PyExc_KeyError, "no such key");
 			throw boost::python::error_already_set();
@@ -295,27 +274,14 @@ public:
 		return it->second.obj;
 	}
 
-	void load()
-	{
-		m_tree = m_store->get_store().load(m_name, m_tree.get_policy().get_policy());
-	}
-
-	void save()
-	{
-		if (m_name != "")
-			lame_save_helper<TreeType>::save(m_store->get_store(), m_name, m_tree);
-	}
-		
 	void setitem(const object& key, const object& value) 
 	{ 
-		m_tree[key] = value;
-		save();
+		(*m_tree)[key] = value;
 	}
 
 	void delitem(const object& key)
 	{
-		m_tree.erase(key);
-		save();
+		m_tree->erase(key);
 	}
 
 	py_key_iterator<TreeType> iter(const object& start, const object& end)
@@ -327,14 +293,14 @@ public:
 	object total(const object& start, const object& end, const object& base)
 	{
 		range_t range = make_range(start, end);
-		return m_tree.total(range.first, range.second, base).obj;
+		return m_tree->total(range.first, range.second, base).obj;
 	}
 	
 	size_t len(const object& start, const object& end)
 	{
 		obj_count base(0);
 		range_t range = make_range(start, end);
-		return m_tree.total(range.first, range.second, base).count;
+		return m_tree->total(range.first, range.second, base).count;
 	}
 
 	object key_at_index(const object& start, const object& end, off_t index)
@@ -347,7 +313,7 @@ public:
 			return range.first->first;  // If we start, return early to avoid null constructed obj_count
 		obj_count total = range.first->second;  // Get first value for accumulator
 		range.first++;  // Skip over it
-		m_tree.accumulate_until(range.first, total, range.second, index_functor(index));  // Do main walk
+		m_tree->accumulate_until(range.first, total, range.second, index_functor(index));  // Do main walk
 		if (range.first == range.second)
 			 throw_index_error(); // If I ran out of elements, fail
 		return range.first->first; // Otherwise, return key
@@ -360,7 +326,7 @@ public:
 
 	py_find_iterator<TreeType> find(const object& lambda)
 	{
-		return py_find_iterator<TreeType>(m_store, m_tree, lambda);
+		return py_find_iterator<TreeType>(m_store, *m_tree, lambda);
 	}
 
 	object aggregate_until(const object& start, const object& end, const object& lambda)
@@ -372,10 +338,10 @@ public:
 			return make_tuple(range.first->first, range.first->second.obj);
 		obj_count total = range.first->second;  // Get first value for accumulator
 		range.first++;  // Skip over it
-		m_tree.accumulate_until(range.first, total, range.second, py_boolean(lambda));  // Do main walk
+		m_tree->accumulate_until(range.first, total, range.second, py_boolean(lambda));  // Do main walk
 		if (range.first == range.second)
 			return object();
-		m_tree.get_policy().aggregate(total, range.first->second);	
+		m_tree->get_policy().aggregate(total, range.first->second);	
 		return make_tuple(range.first->first, total.obj);
 	}
 
@@ -391,36 +357,32 @@ private:
 		if (start == object())
 		{
 			if (end == object())
-				return std::make_pair(m_tree.begin(), m_tree.end());
+				return std::make_pair(m_tree->begin(), m_tree->end());
 			else
-				return std::make_pair(m_tree.begin(), m_tree.lower_bound(end));
+				return std::make_pair(m_tree->begin(), m_tree->lower_bound(end));
 		}
 		else
 		{
 			if (end == object())
-				return std::make_pair(m_tree.lower_bound(start), m_tree.end());
+				return std::make_pair(m_tree->lower_bound(start), m_tree->end());
 			else
-				return std::make_pair(m_tree.lower_bound(start), m_tree.lower_bound(end));
+				return std::make_pair(m_tree->lower_bound(start), m_tree->lower_bound(end));
 		}
 	}
+	/* Used by copy */
 	py_tree(const py_tree& rhs)
 		: m_store(rhs.m_store)
-		, m_tree(rhs.m_tree)
+		, m_tree(tree_ptr_t(new tree_t(*rhs.m_tree)))
 	{}
 
 	boost::shared_ptr<py_store> m_store;  // Empty in memory case
-	tree_t m_tree;
+	tree_ptr_t m_tree;
 	std::string m_name;
 };
 
 boost::shared_ptr<py_disk_tree> py_store::attach(const std::string& name, const object& policy)
 {
-	boost::shared_ptr<py_disk_tree> ptr(new 
-		py_disk_tree(shared_from_this(),
-			m_store.load(name, pytree_policy(policy)),
-			name
-		));
-	return ptr;
+	return boost::shared_ptr<py_disk_tree>(new py_disk_tree(shared_from_this(), name, policy));
 }
 
 class hilbert_wrap
@@ -476,7 +438,6 @@ BOOST_PYTHON_MODULE(abtree_c)
 		;
 	class_<py_disk_tree, boost::shared_ptr<py_disk_tree>, boost::noncopyable >("DiskTree", 
 		init<const boost::shared_ptr<py_store>&, const object&>())
-		.def("load", &py_disk_tree::load)
 		.def("getitem", &py_disk_tree::getitem)
 		.def("setitem", &py_disk_tree::setitem)
 		.def("delitem", &py_disk_tree::delitem)

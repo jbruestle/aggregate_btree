@@ -98,7 +98,7 @@ private:
 		, m_pin_count(0)
 		, m_ptr(NULL)
 		, m_off(0)
-		, m_oldest(0)
+		, m_oldest(std::numeric_limits<off_t>::max())
 		, m_height(0)
 	{}
 
