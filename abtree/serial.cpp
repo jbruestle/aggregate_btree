@@ -47,7 +47,7 @@ static void read_variable(readable& src, IntType& x)
 		unsigned char c;
 		if (src.read((char *) &c, 1) != 1)
 			throw io_exception("Invalid number end");
-		x |= (c & 0x7f) << shift;
+		x |= IntType(c & 0x7f) << shift;
 		if ((c & 0x80) == 0)
 			return;
 		shift += 7;

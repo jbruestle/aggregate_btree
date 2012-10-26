@@ -183,7 +183,7 @@ off_t file_bstore::find_root()
 off_t file_bstore::write_record(char prefix, const std::vector<char>& record)
 {
 	off_t r = m_size;
-	size_t slab_start = m_slabs.rbegin()->first;
+	off_t slab_start = m_slabs.rbegin()->first;
 	m_cur_slab->seek_end();
 	m_cur_slab->write(&prefix, 1);
 	serialize(*m_cur_slab, record.size());

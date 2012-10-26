@@ -29,8 +29,7 @@
 
 class file_bstore
 {
-	const static off_t k_goal_slab_size = 10*1024*1024;  // 10 Mb slabs
-	//const static off_t k_goal_slab_size = 100*1024;  // 100k slabs
+	const static off_t k_goal_slab_size = 100*1024*1024;  // 100 Mb slabs
 
 	struct file_info
 	{
